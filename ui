@@ -1,1 +1,747 @@
+-- ========== СЕРВИСЫ ==========
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Debris = game:GetService("Debris")
+local CollectionService = game:GetService("CollectionService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = Workspace.CurrentCamera
 
+-- ========== НАСТРОЙКИ SILENT AIM ==========
+local CombatSettings = {
+    ShowFOV = true,
+    Color = Color3.fromRGB(255, 255, 255),
+    aimFOV = 300,
+    targetPart = "Head",
+    SilentEnabled = true,
+    HitChance = 100,
+    VisibleCheck = false
+}
+
+-- ========== FOV КРУГ ==========
+local FOVCircle = nil
+local function updateFOVCircle()
+    if FOVCircle then
+        FOVCircle.Visible = false
+        FOVCircle:Remove()
+        FOVCircle = nil
+    end
+    if CombatSettings.ShowFOV then
+        FOVCircle = Drawing.new("Circle")
+        FOVCircle.Thickness = 1
+        FOVCircle.Color = CombatSettings.Color
+        FOVCircle.Transparency = 0.5
+        FOVCircle.Filled = false
+        FOVCircle.Visible = true
+        FOVCircle.Radius = CombatSettings.aimFOV
+        FOVCircle.NumSides = 200
+        FOVCircle.Position = UserInputService:GetMouseLocation()
+    end
+end
+
+-- ========== ВСПОМОГАТЕЛЬНЫЕ ДЛЯ SILENT AIM ==========
+local function teamCheck(p)
+    return p:GetAttribute("Team") ~= LocalPlayer:GetAttribute("Team")
+end
+
+local function IsVisible(part)
+    local char = LocalPlayer.Character
+    if not char then return false end
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    params.FilterDescendantsInstances = {char, Camera}
+    local result = Workspace:Raycast(Camera.CFrame.Position, part.Position - Camera.CFrame.Position, params)
+    return result == nil or result.Instance:IsDescendantOf(part.Parent)
+end
+
+local function getClosestPlayer()
+    local closest = nil
+    local shortestDistance = CombatSettings.aimFOV
+    local mousePos = UserInputService:GetMouseLocation()
+
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character and teamCheck(p) then
+            local targetPart = p.Character:FindFirstChild(CombatSettings.targetPart)
+            if targetPart then
+                local humanoid = p.Character:FindFirstChildOfClass("Humanoid")
+                if humanoid and humanoid.Health > 0 then
+                    if CombatSettings.VisibleCheck and not IsVisible(targetPart) then continue end
+                    local pos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+                    if onScreen then
+                        local distance = (Vector2.new(pos.X, pos.Y) - mousePos).Magnitude
+                        if distance < shortestDistance then
+                            shortestDistance = distance
+                            closest = p.Character
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return closest
+end
+
+-- ========== SILENT AIM (НЕ МЕНЯТЬ!) ==========
+local function SetupSilentAim()
+    local ok, err = pcall(function()
+        local BulletModule = ReplicatedStorage:WaitForChild("Components"):WaitForChild("Weapon"):WaitForChild("Classes"):WaitForChild("Bullet")
+        local Bullet = require(BulletModule)
+        local target_func = Bullet._performRaycast
+
+        local upvals = debug.getupvalues(target_func)
+        local cast_idx = nil
+        for i, v in ipairs(upvals) do
+            if type(v) == "function" then
+                local name = debug.getinfo(v).name
+                if name == "cast" or name == "castThrough" then
+                    cast_idx = i
+                    break
+                end
+            end
+        end
+
+        if cast_idx then
+            local old_cast = upvals[cast_idx]
+            debug.setupvalue(target_func, cast_idx, function(origin, direction, ...)
+                if CombatSettings.SilentEnabled then
+                    local targetChar = getClosestPlayer()
+                    if targetChar and math.random(1, 100) <= CombatSettings.HitChance then
+                        local part = targetChar:FindFirstChild(CombatSettings.targetPart)
+                        if part then
+                            local new_dir = (part.Position - origin).Unit * direction.Magnitude
+                            return old_cast(origin, new_dir, ...)
+                        end
+                    end
+                end
+                return old_cast(origin, direction, ...)
+            end)
+        else
+            error("cast/castThrough not found in upvalues")
+        end
+    end)
+
+    if not ok then
+        LocalPlayer:Kick("BR0000000000000 LET ME TEST " .. tostring(err))
+    end
+end
+
+-- ========== ТРЕЙСЕР ОТ ОРУЖИЯ ==========
+local tracerSettings = {
+    Enabled = true,
+    Width = 40,
+    Lifetime = 3,
+    Color = Color3.new(1, 0.5, 0),
+    Length = 1200,
+}
+
+local function getWeaponPosition()
+    local character = LocalPlayer.Character
+    if not character then return nil end
+    local tool = character:FindFirstChildOfClass("Tool")
+    if tool then
+        local part = tool:FindFirstChild("Handle") or tool:FindFirstChild("Barrel") or tool
+        return part.Position
+    end
+    local rightArm = character:FindFirstChild("RightHand") or character:FindFirstChild("Right Arm")
+    if rightArm then return rightArm.Position end
+    return nil
+end
+
+local function createBeamTracer()
+    if not tracerSettings.Enabled then return end
+    local startPos = getWeaponPosition()
+    if not startPos then return end
+    local endPos = startPos + Camera.CFrame.LookVector * tracerSettings.Length
+    local p0 = Instance.new("Part")
+    p0.Anchored = true
+    p0.CanCollide = false
+    p0.Transparency = 1
+    p0.Size = Vector3.new(0.1, 0.1, 0.1)
+    p0.CFrame = CFrame.new(startPos)
+    p0.Parent = workspace
+    local p1 = Instance.new("Part")
+    p1.Anchored = true
+    p1.CanCollide = false
+    p1.Transparency = 1
+    p1.Size = Vector3.new(0.1, 0.1, 0.1)
+    p1.CFrame = CFrame.new(endPos)
+    p1.Parent = workspace
+    local att0 = Instance.new("Attachment", p0)
+    local att1 = Instance.new("Attachment", p1)
+    local beam = Instance.new("Beam")
+    beam.Attachment0 = att0
+    beam.Attachment1 = att1
+    beam.Color = ColorSequence.new(tracerSettings.Color)
+    beam.Width0 = tracerSettings.Width
+    beam.Width1 = tracerSettings.Width
+    beam.Transparency = NumberSequence.new(0)
+    beam.LightEmission = 1
+    beam.LightInfluence = 0
+    beam.FaceCamera = true
+    beam.Texture = ""
+    beam.Parent = workspace
+    Debris:AddItem(beam, tracerSettings.Lifetime)
+    Debris:AddItem(p0, tracerSettings.Lifetime)
+    Debris:AddItem(p1, tracerSettings.Lifetime)
+end
+
+UserInputService.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        createBeamTracer()
+    end
+end)
+
+-- ========== ESP ОРУЖИЯ ==========
+local WeaponESP = {
+    Objects = setmetatable({}, { __mode = "kv" }),
+    Connections = {},
+    Settings = {
+        Enabled = true,
+        Boxes = true,
+        Color = Color3.fromRGB(255, 255, 255),
+        Thickness = 2,
+        TextSize = 14,
+        TextColor = Color3.fromRGB(255, 255, 255),
+    }
+}
+
+local function findDebris()
+    return workspace:FindFirstChild("Debris")
+end
+
+local function getWeaponInfo(model)
+    if not model then return nil end
+    return {
+        weapon = model:GetAttribute("Weapon"),
+        skin = model:GetAttribute("Skin"),
+        owner = model:GetAttribute("Owner"),
+        model = model,
+    }
+end
+
+local WeaponBox = {}
+WeaponBox.__index = WeaponBox
+
+function WeaponBox.new(obj, opt)
+    local self = setmetatable({}, WeaponBox)
+    self.Object = obj
+    self.PrimaryPart = opt.PrimaryPart or (obj:IsA("BasePart") and obj or obj:FindFirstChildWhichIsA("BasePart"))
+    if not self.PrimaryPart then
+        self.PrimaryPart = obj
+        self.Size = Vector3.new(2, 2, 2)
+    else
+        self.Size = obj:GetExtentsSize()
+    end
+    self.Color = opt.Color or WeaponESP.Settings.Color
+    self.Thickness = opt.Thickness or WeaponESP.Settings.Thickness
+    self.TextColor = WeaponESP.Settings.TextColor
+    self.TextSize = WeaponESP.Settings.TextSize
+    self.Info = opt.info
+
+    self.Quad = Drawing.new("Quad")
+    self.Quad.Thickness = self.Thickness
+    self.Quad.Color = self.Color
+    self.Quad.Transparency = 1
+    self.Quad.Filled = false
+    self.Quad.Visible = WeaponESP.Settings.Enabled and WeaponESP.Settings.Boxes
+
+    self.NameText = Drawing.new("Text")
+    self.NameText.Text = self.Info.weapon or "Unknown"
+    self.NameText.Size = self.TextSize
+    self.NameText.Color = self.TextColor
+    self.NameText.Center = true
+    self.NameText.Outline = true
+    self.NameText.Visible = WeaponESP.Settings.Enabled
+
+    WeaponESP.Objects[obj] = self
+
+    local conn = obj.AncestryChanged:Connect(function()
+        if obj.Parent == nil or (findDebris() and not findDebris():IsAncestorOf(obj)) then
+            self:Remove()
+            if conn then conn:Disconnect() end
+        end
+    end)
+    table.insert(WeaponESP.Connections, conn)
+
+    return self
+end
+
+function WeaponBox:Remove()
+    if self.Quad then
+        self.Quad.Visible = false
+        self.Quad:Remove()
+        self.Quad = nil
+    end
+    if self.NameText then
+        self.NameText.Visible = false
+        self.NameText:Remove()
+        self.NameText = nil
+    end
+    WeaponESP.Objects[self.Object] = nil
+end
+
+function WeaponBox:Update()
+    if not self.PrimaryPart or not self.PrimaryPart.Parent then self:Remove() return end
+    local debris = findDebris()
+    if not debris or not debris:IsAncestorOf(self.Object) then self:Remove() return end
+
+    local visible = WeaponESP.Settings.Enabled and WeaponESP.Settings.Boxes
+    if not visible then
+        if self.Quad then self.Quad.Visible = false end
+        if self.NameText then self.NameText.Visible = false end
+        return
+    end
+
+    if self.Quad then self.Quad.Visible = true end
+    if self.NameText then self.NameText.Visible = true end
+
+    local objPos = self.PrimaryPart:IsA("BasePart") and self.PrimaryPart.Position or self.PrimaryPart:GetPivot().Position
+    local d = (Camera.CFrame.Position - objPos).Magnitude
+    local s = math.clamp(30 / math.max(d, 5), 0.3, 1.5)
+    self.NameText.Size = math.floor(self.TextSize * s)
+
+    local cf = self.PrimaryPart:IsA("BasePart") and self.PrimaryPart.CFrame or self.PrimaryPart:GetPivot()
+    local sz = self.Size
+    local hx, hy, hz = sz.X / 2, sz.Y / 2, sz.Z / 2
+    local corners = {
+        cf * Vector3.new( hx,  hy,  hz), cf * Vector3.new( hx,  hy, -hz),
+        cf * Vector3.new( hx, -hy,  hz), cf * Vector3.new( hx, -hy, -hz),
+        cf * Vector3.new(-hx,  hy,  hz), cf * Vector3.new(-hx,  hy, -hz),
+        cf * Vector3.new(-hx, -hy,  hz), cf * Vector3.new(-hx, -hy, -hz)
+    }
+
+    local proj, allOn = {}, true
+    for i, p in ipairs(corners) do
+        local v = Camera:WorldToViewportPoint(p)
+        if v.Z <= 0 then allOn = false end
+        proj[i] = Vector2.new(v.X, v.Y)
+    end
+
+    if not allOn then
+        self.Quad.Visible = false
+        self.NameText.Visible = false
+        return
+    end
+
+    local minX, maxX, minY, maxY = math.huge, -math.huge, math.huge, -math.huge
+    for _, p in ipairs(proj) do
+        if p.X < minX then minX = p.X end
+        if p.X > maxX then maxX = p.X end
+        if p.Y < minY then minY = p.Y end
+        if p.Y > maxY then maxY = p.Y end
+    end
+
+    self.Quad.PointA = Vector2.new(maxX, minY)
+    self.Quad.PointB = Vector2.new(minX, minY)
+    self.Quad.PointC = Vector2.new(minX, maxY)
+    self.Quad.PointD = Vector2.new(maxX, maxY)
+    self.Quad.Color = self.Color
+    self.Quad.Thickness = self.Thickness
+
+    local textX = (minX + maxX) / 2
+    local textY = minY - self.NameText.TextBounds.Y - 2
+    self.NameText.Position = Vector2.new(textX, textY)
+    self.NameText.Text = self.Info.weapon or "Unknown"
+end
+
+local function addWeapon(obj)
+    if WeaponESP.Objects[obj] then return end
+    local info = getWeaponInfo(obj)
+    if not info or not info.weapon then return end
+    if obj:IsA("BasePart") then
+        local p = obj.Parent
+        if p and p:IsA("Model") and getWeaponInfo(p) then return end
+    end
+    local primary = obj:IsA("BasePart") and obj or (obj:IsA("Model") and (obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")))
+    if not primary then return end
+    WeaponBox.new(obj, { PrimaryPart = primary, Color = WeaponESP.Settings.Color, Thickness = WeaponESP.Settings.Thickness, info = info })
+end
+
+local function scanAllWeapons()
+    local debris = findDebris()
+    if not debris then return end
+    for _, o in ipairs(debris:GetChildren()) do
+        addWeapon(o)
+        if o:IsA("Folder") or o:IsA("Model") then
+            for _, c in ipairs(o:GetChildren()) do
+                addWeapon(c)
+            end
+        end
+    end
+end
+
+local function clearAllWeapons()
+    for _, b in pairs(WeaponESP.Objects) do
+        b:Remove()
+    end
+    WeaponESP.Objects = {}
+    for _, c in ipairs(WeaponESP.Connections) do
+        c:Disconnect()
+    end
+    WeaponESP.Connections = {}
+end
+
+local function initWeaponESP()
+    clearAllWeapons()
+    scanAllWeapons()
+    local debris = findDebris()
+    if debris then
+        local conn = debris.DescendantAdded:Connect(function(o)
+            task.wait(0.1)
+            addWeapon(o)
+        end)
+        table.insert(WeaponESP.Connections, conn)
+    end
+end
+
+workspace.ChildAdded:Connect(function(c)
+    if c.Name == "Debris" then
+        task.wait(0.2)
+        initWeaponESP()
+    end
+end)
+workspace.ChildRemoved:Connect(function(c)
+    if c == findDebris() then
+        clearAllWeapons()
+    end
+end)
+LocalPlayer.CharacterAdded:Connect(function()
+    task.wait(1.5)
+    initWeaponESP()
+end)
+initWeaponESP()
+
+RunService.RenderStepped:Connect(function()
+    for _, b in pairs(WeaponESP.Objects) do
+        pcall(b.Update, b)
+    end
+end)
+
+-- ========== CORNER BOX ESP (игроки) ==========
+local PlayerESP = {
+    Enabled = true,
+    Color = Color3.fromRGB(64, 224, 208),
+    Thickness = 2,
+    CornerLength = 6,
+    MaxDistance = 2000,
+    UseTeamCheck = true,
+}
+
+local PlayerBoxes = {}
+
+local function ShouldDisplayPlayer(plr)
+    if plr == LocalPlayer then return false end
+    if not PlayerESP.UseTeamCheck then return true end
+    local myChar = LocalPlayer.Character
+    local theirChar = plr.Character
+    if not myChar or not theirChar then return false end
+    local myParent = myChar.Parent
+    local theirParent = theirChar.Parent
+    if not myParent or not theirParent then return false end
+    return myParent.Name ~= theirParent.Name
+end
+
+local function CreatePlayerBox(plr)
+    if PlayerBoxes[plr] then return end
+    local lines = {}
+    for i = 1, 8 do
+        local line = Drawing.new("Line")
+        line.Thickness = PlayerESP.Thickness
+        line.Color = PlayerESP.Color
+        line.Visible = false
+        table.insert(lines, line)
+    end
+    PlayerBoxes[plr] = lines
+end
+
+local function RemovePlayerBox(plr)
+    if PlayerBoxes[plr] then
+        for _, line in ipairs(PlayerBoxes[plr]) do
+            line:Remove()
+        end
+        PlayerBoxes[plr] = nil
+    end
+end
+
+Players.PlayerAdded:Connect(function(plr)
+    if plr ~= LocalPlayer then
+        CreatePlayerBox(plr)
+    end
+end)
+Players.PlayerRemoving:Connect(RemovePlayerBox)
+
+for _, plr in ipairs(Players:GetPlayers()) do
+    if plr ~= LocalPlayer then
+        CreatePlayerBox(plr)
+    end
+end
+
+RunService.RenderStepped:Connect(function()
+    local myRoot = LocalPlayer.Character and (LocalPlayer.Character:FindFirstChild("HumanoidRootPart") or LocalPlayer.Character:FindFirstChild("Torso"))
+    for plr, lines in pairs(PlayerBoxes) do
+        local char = plr.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if not char or not hum or hum.Health <= 0 or not ShouldDisplayPlayer(plr) or not PlayerESP.Enabled then
+            for _, line in ipairs(lines) do
+                line.Visible = false
+            end
+        else
+            local root = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso")
+            local head = char:FindFirstChild("Head")
+            if root and head then
+                local dist = myRoot and (myRoot.Position - root.Position).Magnitude or math.huge
+                if dist <= PlayerESP.MaxDistance then
+                    local headPos, onScreenHead = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.6, 0))
+                    local rootPos, onScreenRoot = Camera:WorldToViewportPoint(root.Position)
+                    local legPos, onScreenLeg = Camera:WorldToViewportPoint(root.Position - Vector3.new(0, 3.5, 0))
+                    if onScreenRoot and onScreenHead and onScreenLeg and rootPos.Z > 0 then
+                        local rV = Vector2.new(rootPos.X, rootPos.Y)
+                        local hV = Vector2.new(headPos.X, headPos.Y)
+                        local lV = Vector2.new(legPos.X, legPos.Y)
+                        local boxHeight = math.abs(hV.Y - lV.Y)
+                        local boxWidth = boxHeight * 0.55
+                        local x1 = rV.X - boxWidth / 2
+                        local x2 = rV.X + boxWidth / 2
+                        local y1 = rV.Y - boxHeight / 2
+                        local y2 = rV.Y + boxHeight / 2
+                        local len = PlayerESP.CornerLength
+
+                        lines[1].From = Vector2.new(x1, y1)
+                        lines[1].To = Vector2.new(x1, y1 + len)
+                        lines[2].From = Vector2.new(x1, y1)
+                        lines[2].To = Vector2.new(x1 + len, y1)
+
+                        lines[3].From = Vector2.new(x2, y1)
+                        lines[3].To = Vector2.new(x2, y1 + len)
+                        lines[4].From = Vector2.new(x2 - len, y1)
+                        lines[4].To = Vector2.new(x2, y1)
+
+                        lines[5].From = Vector2.new(x1, y2)
+                        lines[5].To = Vector2.new(x1, y2 - len)
+                        lines[6].From = Vector2.new(x1, y2)
+                        lines[6].To = Vector2.new(x1 + len, y2)
+
+                        lines[7].From = Vector2.new(x2, y2)
+                        lines[7].To = Vector2.new(x2, y2 - len)
+                        lines[8].From = Vector2.new(x2 - len, y2)
+                        lines[8].To = Vector2.new(x2, y2)
+
+                        for i = 1, 8 do
+                            lines[i].Visible = true
+                            lines[i].Color = PlayerESP.Color
+                            lines[i].Thickness = PlayerESP.Thickness
+                        end
+                    else
+                        for _, line in ipairs(lines) do
+                            line.Visible = false
+                        end
+                    end
+                else
+                    for _, line in ipairs(lines) do
+                        line.Visible = false
+                    end
+                end
+            else
+                for _, line in ipairs(lines) do
+                    line.Visible = false
+                end
+            end
+        end
+    end
+end)
+
+-- ========== ЗАПУСК ОСНОВНЫХ СИСТЕМ ==========
+RunService.RenderStepped:Connect(updateFOVCircle)
+SetupSilentAim()
+
+-- ========== AUTO BHOP (добавлен без изменений) ==========
+do
+    local Players = game:GetService("Players")
+    local RunService = game:GetService("RunService")
+    local UserInputService = game:GetService("UserInputService")
+    local LocalPlayer = Players.LocalPlayer
+
+    local Settings = {
+        Enabled = true,
+        Key = Enum.KeyCode.Space
+    }
+
+    local MainLoop = RunService.RenderStepped:Connect(function()
+        if not Settings.Enabled then return end
+        
+        local char = LocalPlayer.Character
+        if not char then return end
+        
+        local hum = char:FindFirstChild("Humanoid")
+        if not hum then return end
+        
+        if UserInputService:IsKeyDown(Settings.Key) then
+            if hum.FloorMaterial ~= Enum.Material.Air then
+                hum.Jump = true
+            end
+        end
+    end)
+
+    local function Unload()
+        MainLoop:Disconnect()
+        print("autobhop Unloaded")
+    end
+
+    getgenv().AutoBhop = {
+        Settings = Settings,
+        Unload = Unload
+    }
+
+    print("autobhop loaded")
+end
+
+-- ========== WALLBANG GUI (добавлен без изменений) ==========
+do
+    local Players = game:GetService("Players")
+    local Workspace = game:GetService("Workspace")
+    local CollectionService = game:GetService("CollectionService")
+    local RunService = game:GetService("RunService")
+    local LocalPlayer = Players.LocalPlayer
+
+    local WallbangEnabled = true
+    local ProtectedKeywords = {
+        "floor", "cityfloor", "baseplate", "ground", "spawn",
+        "stair", "stairs", "ramp", "platform", "road", "sidewalk",
+        "dirt", "grass", "terrain", "lobby", "waiting",
+        "shop", "vendor", "buy", "purchase", "ui", "gui"
+    }
+
+    local BuyAreas = {}
+    local function UpdateBuyAreas()
+        BuyAreas = {}
+        for _, area in ipairs(CollectionService:GetTagged("BuyArea")) do
+            BuyAreas[area] = true
+        end
+    end
+    UpdateBuyAreas()
+    CollectionService:GetInstanceAddedSignal("BuyArea"):Connect(function(area)
+        BuyAreas[area] = true
+    end)
+    CollectionService:GetInstanceRemovedSignal("BuyArea"):Connect(function(area)
+        BuyAreas[area] = nil
+    end)
+
+    local function ShouldProtect(obj)
+        if BuyAreas[obj] then return true end
+        if obj:GetAttribute("Team") then return true end
+        local name = string.lower(obj.Name)
+        for _, word in ipairs(ProtectedKeywords) do
+            if name:find(word) then return true end
+        end
+        return false
+    end
+
+    local function RemoveIfWall(obj)
+        if not obj:IsA("BasePart") then return end
+        if obj:IsDescendantOf(LocalPlayer.Character) then return end
+        if ShouldProtect(obj) then return end
+        if obj.Size.Y > 3 then
+            pcall(function() obj:Destroy() end)
+        end
+    end
+
+    local function InitialWallbangCleanup()
+        local removed = 0
+        for _, obj in ipairs(Workspace:GetDescendants()) do
+            if obj:IsA("BasePart") and not obj:IsDescendantOf(LocalPlayer.Character) then
+                if not ShouldProtect(obj) and obj.Size.Y > 3 then
+                    pcall(function() obj:Destroy() end)
+                    removed = removed + 1
+                end
+            end
+        end
+        print("[Wallbang] Removed", removed, "parts")
+    end
+
+    local WallbangConnection = nil
+
+    local function ToggleWallbang(enable)
+        if WallbangConnection then
+            WallbangConnection:Disconnect()
+            WallbangConnection = nil
+        end
+        if enable then
+            InitialWallbangCleanup()
+            WallbangConnection = Workspace.DescendantAdded:Connect(RemoveIfWall)
+        end
+    end
+
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "WallbangGUI"
+    screenGui.Parent = game:GetService("CoreGui")
+    screenGui.ResetOnSpawn = false
+
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(0, 200, 0, 70)
+    frame.Position = UDim2.new(0.5, -100, 0.5, -35)
+    frame.BackgroundColor3 = Color3.fromRGB(17, 17, 17)
+    frame.BorderColor3 = Color3.fromRGB(150, 200, 60)
+    frame.BorderSizePixel = 1
+    frame.Active = true
+    frame.Draggable = true
+    frame.Parent = screenGui
+
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, 0, 0, 25)
+    title.BackgroundTransparency = 1
+    title.Text = "Wallbang"
+    title.TextColor3 = Color3.fromRGB(150, 200, 60)
+    title.Font = Enum.Font.Code
+    title.TextSize = 14
+    title.Parent = frame
+
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Size = UDim2.new(0, 20, 0, 20)
+    closeBtn.Position = UDim2.new(1, -25, 0, 3)
+    closeBtn.BackgroundTransparency = 1
+    closeBtn.Text = "X"
+    closeBtn.TextColor3 = Color3.new(1, 1, 1)
+    closeBtn.Font = Enum.Font.Code
+    closeBtn.TextSize = 14
+    closeBtn.Parent = frame
+    closeBtn.MouseButton1Click:Connect(function()
+        screenGui:Destroy()
+    end)
+
+    local toggleBtn = Instance.new("TextButton")
+    toggleBtn.Size = UDim2.new(1, -20, 0, 30)
+    toggleBtn.Position = UDim2.new(0, 10, 1, -40)
+    toggleBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    toggleBtn.BorderSizePixel = 1
+    toggleBtn.BorderColor3 = Color3.fromRGB(80, 80, 80)
+    toggleBtn.Text = "Wallbang: ON"
+    toggleBtn.TextColor3 = Color3.new(1, 1, 1)
+    toggleBtn.Font = Enum.Font.Code
+    toggleBtn.TextSize = 12
+    toggleBtn.Parent = frame
+
+    local status = Instance.new("TextLabel")
+    status.Size = UDim2.new(1, -20, 0, 20)
+    status.Position = UDim2.new(0, 10, 0, 35)
+    status.BackgroundTransparency = 1
+    status.Text = "Removes large obstacles"
+    status.TextColor3 = Color3.fromRGB(150, 150, 150)
+    status.Font = Enum.Font.Code
+    status.TextSize = 10
+    status.TextXAlignment = Enum.TextXAlignment.Left
+    status.Parent = frame
+
+    toggleBtn.MouseButton1Click:Connect(function()
+        WallbangEnabled = not WallbangEnabled
+        ToggleWallbang(WallbangEnabled)
+        toggleBtn.Text = "Wallbang: " .. (WallbangEnabled and "ON" or "OFF")
+        toggleBtn.BackgroundColor3 = WallbangEnabled and Color3.fromRGB(150, 200, 60) or Color3.fromRGB(40, 40, 40)
+    end)
+
+    ToggleWallbang(true)
+end
+
+print("✅ Все модули загружены: Silent Aim, FOV Circle, Tracer, Weapon ESP, Corner ESP, AutoBhop, Wallbang GUI")
