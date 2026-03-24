@@ -1,14 +1,3 @@
---[[
-    FENT.LOL UI – v1.7
-    - Вкладки: RAGE | ESP | VISUALS | MISC
-    - Silent Aim, FOV Circle, Tracer, Weapon ESP, Corner Box+Name+Health+Distance ESP
-    - Auto Bhop, Wallbang, Smoke Remover, Flashbang Remover
-    - Chams (BoxHandleAdornment), Sky (смена неба с выбором стиля)
-    - Баннер "I LOVE MILF" при запуске
-    - Двухколоночное расположение, чёрная обводка, розовый акцент
-]]
-
--- ========== БАННЕР ==========
 local bannerGui = Instance.new("ScreenGui")
 bannerGui.Name = "FentBanner"
 bannerGui.Parent = game:GetService("CoreGui")
@@ -48,7 +37,7 @@ bannerSub.Parent = bannerFrame
 task.wait(2)
 bannerGui:Destroy()
 
--- ========== СЕРВИСЫ ==========
+
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
@@ -73,7 +62,7 @@ local CombatSettings = {
     HitChance = 100,
     VisibleCheck = false,
 }
--- Мега-трейсер
+
 local TracerSettings = {
     Enabled = true,
     Width = 40,
@@ -94,31 +83,31 @@ local WeaponESP = {
         TextColor = Color3.fromRGB(255, 255, 255),
     }
 }
--- Auto Bhop
+
 local AutoBhopSettings = {
     Enabled = true,
     Key = Enum.KeyCode.Space
 }
--- Wallbang
+
 local WallbangEnabled = true
 
--- Chams
+
 local ChamsSettings = {
     Enabled = false,
     Color = Color3.fromRGB(255, 105, 180),
     Transparency = 0.5,
 }
--- Sky
+
 local SkySettings = {
     Enabled = false,
     Style = "Dark Sky",
 }
--- Smoke Remover
+
 local SmokeRemoverEnabled = false
 -- Flashbang Remover
 local FlashbangRemoverEnabled = false
 
--- ========== SILENT AIM KEYBIND ==========
+
 local SilentAimKeybind = "Alt"
 local SilentAimKeyMode = "Hold"
 local SilentAimKeyEnum = Enum.KeyCode.LeftAlt
