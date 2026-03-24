@@ -37,7 +37,6 @@ bannerSub.Parent = bannerFrame
 task.wait(2)
 bannerGui:Destroy()
 
-
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
@@ -51,8 +50,6 @@ local Lighting = game:GetService("Lighting")
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 
--- ========== НАСТРОЙКИ ==========
--- Silent Aim
 local CombatSettings = {
     ShowFOV = true,
     Color = Color3.fromRGB(255, 105, 180),
@@ -70,7 +67,7 @@ local TracerSettings = {
     Color = Color3.fromRGB(255, 105, 180),
     Length = 1200,
 }
--- Weapon ESP
+
 local WeaponESP = {
     Objects = setmetatable({}, { __mode = "kv" }),
     Connections = {},
@@ -91,7 +88,6 @@ local AutoBhopSettings = {
 
 local WallbangEnabled = true
 
-
 local ChamsSettings = {
     Enabled = false,
     Color = Color3.fromRGB(255, 105, 180),
@@ -104,9 +100,7 @@ local SkySettings = {
 }
 
 local SmokeRemoverEnabled = false
--- Flashbang Remover
 local FlashbangRemoverEnabled = false
-
 
 local SilentAimKeybind = "Alt"
 local SilentAimKeyMode = "Hold"
@@ -155,7 +149,6 @@ local function setupSilentAimKeybind()
 end
 setupSilentAimKeybind()
 
--- ========== КОМБИНИРОВАННЫЙ ESP (Corner Box + Name + Health + Distance) ==========
 local ESP_SETTINGS = {
     Enabled = true,
     Color = Color3.fromRGB(255, 105, 180),
@@ -164,7 +157,6 @@ local ESP_SETTINGS = {
     MaxDistance = 2000,
     UseTeamCheck = true,
     TeamCheckMode = "Enemies",
-
     Name = true,
     NameColor = Color3.fromRGB(255, 215, 0),
     Distance = true,
@@ -177,24 +169,18 @@ local ESP_SETTINGS = {
     HealthSide = "Left",
 }
 
--- Хранилище объектов ESP
-local ESPObjects = {} -- [Player] = { lines, Name, Distance, HealthBg, HealthFill }
+local ESPObjects = {}
 
--- Проверка отображения
 local function ShouldDisplay(plr)
     if plr == LocalPlayer then return false end
     if not ESP_SETTINGS.UseTeamCheck then return true end
-
     local myChar = LocalPlayer.Character
     local theirChar = plr.Character
     if not myChar or not theirChar then return false end
-
     local myParent = myChar.Parent
     local theirParent = theirChar.Parent
     if not myParent or not theirParent then return false end
-
     local isEnemy = myParent.Name ~= theirParent.Name
-
     if ESP_SETTINGS.TeamCheckMode == "Enemies" then
         return isEnemy
     elseif ESP_SETTINGS.TeamCheckMode == "Teammates" then
@@ -204,12 +190,9 @@ local function ShouldDisplay(plr)
     end
 end
 
--- Создание объектов для игрока
 local function CreateESP(plr)
     if ESPObjects[plr] then return end
     local objs = {}
-
-    -- 8 линий для уголкового бокса
     local lines = {}
     for i = 1, 8 do
         local line = Drawing.new("Line")
@@ -219,8 +202,6 @@ local function CreateESP(plr)
         table.insert(lines, line)
     end
     objs.lines = lines
-
-    -- Текст имени
     if ESP_SETTINGS.Name then
         local name = Drawing.new("Text")
         name.Size = 15
@@ -230,8 +211,6 @@ local function CreateESP(plr)
         name.Visible = false
         objs.Name = name
     end
-
-    -- Текст дистанции
     if ESP_SETTINGS.Distance then
         local dist = Drawing.new("Text")
         dist.Size = 12
@@ -241,32 +220,25 @@ local function CreateESP(plr)
         dist.Visible = false
         objs.Distance = dist
     end
-
-    -- Полоска здоровья
     if ESP_SETTINGS.HealthBar then
         local bg = Drawing.new("Square")
         bg.Filled = true
         bg.Color = ESP_SETTINGS.HealthBgColor
         bg.Visible = false
         objs.HealthBg = bg
-
         local fill = Drawing.new("Square")
         fill.Filled = true
         fill.Color = ESP_SETTINGS.HealthColor
         fill.Visible = false
         objs.HealthFill = fill
     end
-
     ESPObjects[plr] = objs
 end
 
--- Удаление объектов
 local function RemoveESP(plr)
     local objs = ESPObjects[plr]
     if objs then
-        for _, line in ipairs(objs.lines) do
-            line:Remove()
-        end
+        for _, line in ipairs(objs.lines) do line:Remove() end
         if objs.Name then objs.Name:Remove() end
         if objs.Distance then objs.Distance:Remove() end
         if objs.HealthBg then objs.HealthBg:Remove() end
@@ -275,7 +247,6 @@ local function RemoveESP(plr)
     end
 end
 
--- Инициализация существующих игроков
 for _, plr in ipairs(Players:GetPlayers()) do
     if plr ~= LocalPlayer then CreateESP(plr) end
 end
@@ -284,7 +255,6 @@ Players.PlayerAdded:Connect(function(plr)
 end)
 Players.PlayerRemoving:Connect(RemoveESP)
 
--- Основной цикл отрисовки ESP
 RunService.RenderStepped:Connect(function()
     if not ESP_SETTINGS.Enabled then
         for _, objs in pairs(ESPObjects) do
@@ -296,10 +266,8 @@ RunService.RenderStepped:Connect(function()
         end
         return
     end
-
     local myRoot = LocalPlayer.Character and (LocalPlayer.Character:FindFirstChild("HumanoidRootPart") or LocalPlayer.Character:FindFirstChild("Torso"))
     if not myRoot then return end
-
     for plr, objs in pairs(ESPObjects) do
         local char = plr.Character
         local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -318,71 +286,55 @@ RunService.RenderStepped:Connect(function()
                     local headPos, onHead = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.6, 0))
                     local rootPos, onRoot = Camera:WorldToViewportPoint(root.Position)
                     local legPos, onLeg = Camera:WorldToViewportPoint(root.Position - Vector3.new(0, 3.5, 0))
-
                     if onRoot and onHead and onLeg and rootPos.Z > 0 then
                         local rV = Vector2.new(rootPos.X, rootPos.Y)
                         local hV = Vector2.new(headPos.X, headPos.Y)
                         local lV = Vector2.new(legPos.X, legPos.Y)
-
                         local boxHeight = math.abs(hV.Y - lV.Y)
                         local boxWidth = boxHeight * 0.55
-
                         local x1 = rV.X - boxWidth / 2
                         local x2 = rV.X + boxWidth / 2
                         local y1 = rV.Y - boxHeight / 2
                         local y2 = rV.Y + boxHeight / 2
                         local len = ESP_SETTINGS.CornerLength
-
-                        -- Обновление линий уголкового бокса
                         local lines = objs.lines
                         lines[1].From = Vector2.new(x1, y1)
                         lines[1].To = Vector2.new(x1, y1 + len)
                         lines[2].From = Vector2.new(x1, y1)
                         lines[2].To = Vector2.new(x1 + len, y1)
-
                         lines[3].From = Vector2.new(x2, y1)
                         lines[3].To = Vector2.new(x2, y1 + len)
                         lines[4].From = Vector2.new(x2 - len, y1)
                         lines[4].To = Vector2.new(x2, y1)
-
                         lines[5].From = Vector2.new(x1, y2)
                         lines[5].To = Vector2.new(x1, y2 - len)
                         lines[6].From = Vector2.new(x1, y2)
                         lines[6].To = Vector2.new(x1 + len, y2)
-
                         lines[7].From = Vector2.new(x2, y2)
                         lines[7].To = Vector2.new(x2, y2 - len)
                         lines[8].From = Vector2.new(x2 - len, y2)
                         lines[8].To = Vector2.new(x2, y2)
-
                         for i = 1, 8 do
                             lines[i].Visible = true
                             lines[i].Color = ESP_SETTINGS.Color
                             lines[i].Thickness = ESP_SETTINGS.Thickness
                         end
-
-                        -- Имя
                         if ESP_SETTINGS.Name and objs.Name then
                             objs.Name.Text = plr.Name
                             objs.Name.Position = Vector2.new(hV.X, hV.Y - 30)
                             objs.Name.Color = ESP_SETTINGS.NameColor
                             objs.Name.Visible = true
                         end
-
-                        -- Дистанция
                         if ESP_SETTINGS.Distance and objs.Distance then
                             objs.Distance.Text = math.floor(dist) .. "m"
                             objs.Distance.Position = Vector2.new(rV.X, rV.Y + 20)
                             objs.Distance.Color = ESP_SETTINGS.DistanceColor
                             objs.Distance.Visible = true
                         end
-
-                        -- Полоска здоровья
                         if ESP_SETTINGS.HealthBar and objs.HealthBg and objs.HealthFill then
                             local barX, barY
                             local barHeight = boxHeight
                             local barWidth = ESP_SETTINGS.BarWidth
-
                             if ESP_SETTINGS.HealthSide == "Left" then
                                 barX = x1 - barWidth - ESP_SETTINGS.BarOffset
                                 barY = y1
@@ -390,12 +342,10 @@ RunService.RenderStepped:Connect(function()
                                 barX = x2 + ESP_SETTINGS.BarOffset
                                 barY = y1
                             end
-
                             objs.HealthBg.Size = Vector2.new(barWidth, barHeight)
                             objs.HealthBg.Position = Vector2.new(barX, barY)
                             objs.HealthBg.Color = ESP_SETTINGS.HealthBgColor
                             objs.HealthBg.Visible = true
-
                             local healthPercent = math.max(0, hum.Health / hum.MaxHealth)
                             local fillHeight = barHeight * healthPercent
                             if fillHeight > 0 then
@@ -432,8 +382,6 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- ========== SILENT AIM ==========
--- Вспомогательные функции для Silent Aim
 local function teamCheck(p)
     return p:GetAttribute("Team") ~= LocalPlayer:GetAttribute("Team")
 end
@@ -452,7 +400,6 @@ local function getClosestPlayer()
     local closest = nil
     local shortestDistance = CombatSettings.aimFOV
     local mousePos = UserInputService:GetMouseLocation()
-
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LocalPlayer and p.Character and teamCheck(p) then
             local targetPart = p.Character:FindFirstChild(CombatSettings.targetPart)
@@ -475,13 +422,11 @@ local function getClosestPlayer()
     return closest
 end
 
--- Silent Aim Hook
 local function SetupSilentAim()
     local ok, err = pcall(function()
         local BulletModule = ReplicatedStorage:WaitForChild("Components"):WaitForChild("Weapon"):WaitForChild("Classes"):WaitForChild("Bullet")
         local Bullet = require(BulletModule)
         local target_func = Bullet._performRaycast
-
         local upvals = debug.getupvalues(target_func)
         local cast_idx = nil
         for i, v in ipairs(upvals) do
@@ -493,7 +438,6 @@ local function SetupSilentAim()
                 end
             end
         end
-
         if cast_idx then
             local old_cast = upvals[cast_idx]
             debug.setupvalue(target_func, cast_idx, function(origin, direction, ...)
@@ -513,13 +457,11 @@ local function SetupSilentAim()
             error("cast/castThrough not found in upvalues")
         end
     end)
-
     if not ok then
         LocalPlayer:Kick("Silent Aim hook failed: " .. tostring(err))
     end
 end
 
--- ========== FOV КРУГ ==========
 local FOVCircle = nil
 local function updateFOVCircle()
     if FOVCircle then
@@ -540,7 +482,6 @@ local function updateFOVCircle()
     end
 end
 
--- ========== МЕГА-ТРЕЙСЕР ==========
 local function getWeaponPosition()
     local character = LocalPlayer.Character
     if not character then return nil end
@@ -575,7 +516,6 @@ local function enhanceExistingTrails(obj)
     end
 end
 
--- Применяем ко всем существующим объектам
 for _, obj in ipairs(workspace:GetDescendants()) do
     if obj:IsA("Trail") or obj:IsA("Beam") then
         enhanceExistingTrails(obj)
@@ -632,7 +572,6 @@ UserInputService.InputBegan:Connect(function(input, gp)
     end
 end)
 
--- ========== WEAPON ESP ==========
 local function findDebris()
     return workspace:FindFirstChild("Debris")
 end
@@ -665,14 +604,12 @@ function WeaponBox.new(obj, opt)
     self.TextColor = WeaponESP.Settings.TextColor
     self.TextSize = WeaponESP.Settings.TextSize
     self.Info = opt.info
-
     self.Quad = Drawing.new("Quad")
     self.Quad.Thickness = self.Thickness
     self.Quad.Color = self.Color
     self.Quad.Transparency = 1
     self.Quad.Filled = false
     self.Quad.Visible = WeaponESP.Settings.Enabled and WeaponESP.Settings.Boxes
-
     self.NameText = Drawing.new("Text")
     self.NameText.Text = self.Info.weapon or "Unknown"
     self.NameText.Size = self.TextSize
@@ -680,9 +617,7 @@ function WeaponBox.new(obj, opt)
     self.NameText.Center = true
     self.NameText.Outline = true
     self.NameText.Visible = WeaponESP.Settings.Enabled
-
     WeaponESP.Objects[obj] = self
-
     local conn = obj.AncestryChanged:Connect(function()
         if obj.Parent == nil or (findDebris() and not findDebris():IsAncestorOf(obj)) then
             self:Remove()
@@ -690,7 +625,6 @@ function WeaponBox.new(obj, opt)
         end
     end)
     table.insert(WeaponESP.Connections, conn)
-
     return self
 end
 
@@ -712,22 +646,18 @@ function WeaponBox:Update()
     if not self.PrimaryPart or not self.PrimaryPart.Parent then self:Remove() return end
     local debris = findDebris()
     if not debris or not debris:IsAncestorOf(self.Object) then self:Remove() return end
-
     local visible = WeaponESP.Settings.Enabled and WeaponESP.Settings.Boxes
     if not visible then
         if self.Quad then self.Quad.Visible = false end
         if self.NameText then self.NameText.Visible = false end
         return
     end
-
     if self.Quad then self.Quad.Visible = true end
     if self.NameText then self.NameText.Visible = true end
-
     local objPos = self.PrimaryPart:IsA("BasePart") and self.PrimaryPart.Position or self.PrimaryPart:GetPivot().Position
     local d = (Camera.CFrame.Position - objPos).Magnitude
     local s = math.clamp(30 / math.max(d, 5), 0.3, 1.5)
     self.NameText.Size = math.floor(self.TextSize * s)
-
     local cf = self.PrimaryPart:IsA("BasePart") and self.PrimaryPart.CFrame or self.PrimaryPart:GetPivot()
     local sz = self.Size
     local hx, hy, hz = sz.X / 2, sz.Y / 2, sz.Z / 2
@@ -737,20 +667,17 @@ function WeaponBox:Update()
         cf * Vector3.new(-hx,  hy,  hz), cf * Vector3.new(-hx,  hy, -hz),
         cf * Vector3.new(-hx, -hy,  hz), cf * Vector3.new(-hx, -hy, -hz)
     }
-
     local proj, allOn = {}, true
     for i, p in ipairs(corners) do
         local v = Camera:WorldToViewportPoint(p)
         if v.Z <= 0 then allOn = false end
         proj[i] = Vector2.new(v.X, v.Y)
     end
-
     if not allOn then
         self.Quad.Visible = false
         self.NameText.Visible = false
         return
     end
-
     local minX, maxX, minY, maxY = math.huge, -math.huge, math.huge, -math.huge
     for _, p in ipairs(proj) do
         if p.X < minX then minX = p.X end
@@ -758,14 +685,12 @@ function WeaponBox:Update()
         if p.Y < minY then minY = p.Y end
         if p.Y > maxY then maxY = p.Y end
     end
-
     self.Quad.PointA = Vector2.new(maxX, minY)
     self.Quad.PointB = Vector2.new(minX, minY)
     self.Quad.PointC = Vector2.new(minX, maxY)
     self.Quad.PointD = Vector2.new(maxX, maxY)
     self.Quad.Color = self.Color
     self.Quad.Thickness = self.Thickness
-
     local textX = (minX + maxX) / 2
     local textY = minY - self.NameText.TextBounds.Y - 2
     self.NameText.Position = Vector2.new(textX, textY)
@@ -844,7 +769,6 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- ========== AUTO BHOP ==========
 local BhopConnection = nil
 local function setupAutoBhop()
     if BhopConnection then BhopConnection:Disconnect() end
@@ -863,7 +787,6 @@ local function setupAutoBhop()
 end
 setupAutoBhop()
 
--- ========== WALLBANG ==========
 local ProtectedKeywords = {
     "floor", "cityfloor", "baseplate", "ground", "spawn",
     "stair", "stairs", "ramp", "platform", "road", "sidewalk",
@@ -930,7 +853,6 @@ local function ToggleWallbang(enable)
     end
 end
 
--- ========== CHAMS ==========
 local function IsEnemy(plr)
     if plr == LocalPlayer then return false end
     local myChar = LocalPlayer.Character
@@ -965,7 +887,6 @@ local function CreateSimpleCham(part, color, trans)
 end
 
 local function UpdateChams()
-    -- Удаляем старые
     for _, plr in Players:GetPlayers() do
         local char = plr.Character
         if char then
@@ -975,8 +896,6 @@ local function UpdateChams()
         end
     end
     if not ChamsSettings.Enabled then return end
-
-    -- Враги
     for _, plr in Players:GetPlayers() do
         if plr ~= LocalPlayer and plr.Character and IsEnemy(plr) then
             for _, part in plr.Character:GetChildren() do
@@ -1003,7 +922,6 @@ local function StartChamsLoop()
 end
 StartChamsLoop()
 
--- ========== SKY ==========
 local SkyAssets = {
     ["Dark Sky"] = {
         Up = "rbxassetid://570555929",
@@ -1056,7 +974,6 @@ local function UpdateSky()
     end
 end
 
--- ========== SMOKE REMOVER ==========
 local SmokeConn = nil
 local function ToggleSmokeRemover()
     if SmokeConn then SmokeConn:Disconnect(); SmokeConn = nil end
@@ -1075,7 +992,6 @@ local function ToggleSmokeRemover()
     end)
 end
 
--- ========== FLASHBANG REMOVER ==========
 local FlashConn = nil
 local function ToggleFlashbang()
     if FlashConn then FlashConn:Disconnect(); FlashConn = nil end
@@ -1088,11 +1004,90 @@ local function ToggleFlashbang()
     end)
 end
 
--- ========== GUI ==========
 local guiInstance = nil
 local firstTime = true
-local accentColor = Color3.fromRGB(255, 105, 180) -- розовый
+local accentColor = Color3.fromRGB(255, 105, 180)
 local uiControls = { silentToggle = nil }
+
+local CrosshairSettings = {
+    Enabled = true,
+}
+
+local function createCrosshair()
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "Crosshair"
+    screenGui.ResetOnSpawn = false
+    screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+    local container = Instance.new("Frame")
+    container.Size = UDim2.new(0, 100, 0, 140)
+    container.BackgroundTransparency = 1
+    container.Position = UDim2.new(0, 0, 0, 0)
+    container.Parent = screenGui
+
+    local symbolContainer = Instance.new("Frame")
+    symbolContainer.Size = UDim2.new(0, 100, 0, 100)
+    symbolContainer.BackgroundTransparency = 1
+    symbolContainer.Parent = container
+
+    local swastika = Instance.new("TextLabel")
+    swastika.Text = "卍"
+    swastika.Font = Enum.Font.SourceSans
+    swastika.TextSize = 100
+    swastika.TextColor3 = Color3.new(1, 1, 1)
+    swastika.BackgroundTransparency = 1
+    swastika.Size = UDim2.new(1, 0, 1, 0)
+    swastika.TextXAlignment = Enum.TextXAlignment.Center
+    swastika.TextYAlignment = Enum.TextYAlignment.Center
+    local stroke = Instance.new("UIStroke")
+    stroke.Thickness = 1.5
+    stroke.Color = Color3.new(0, 0, 0)
+    stroke.Parent = swastika
+    swastika.Parent = symbolContainer
+
+    local mainText = Instance.new("TextLabel")
+    mainText.Text = "Milf Hunter.Win"
+    mainText.Font = Enum.Font.SourceSansBold
+    mainText.TextSize = 28
+    mainText.TextColor3 = Color3.new(1, 1, 1)
+    mainText.BackgroundTransparency = 1
+    mainText.Size = UDim2.new(0, 140, 0, 38)
+    mainText.Position = UDim2.new(0.5, -70, 1, 5)
+    mainText.TextXAlignment = Enum.TextXAlignment.Center
+    mainText.TextYAlignment = Enum.TextYAlignment.Center
+    local textStroke = Instance.new("UIStroke")
+    textStroke.Thickness = 1
+    textStroke.Color = Color3.new(0, 0, 0)
+    textStroke.Parent = mainText
+    mainText.Parent = container
+
+    local time = 0
+    local angle = 0
+
+    local function updateCrosshair()
+        if not CrosshairSettings.Enabled then
+            container.Visible = false
+            return
+        end
+        container.Visible = true
+
+        local mousePos = UserInputService:GetMouseLocation()
+        container.Position = UDim2.new(0, mousePos.X - 50, 0, mousePos.Y - 70)
+
+        time = time + 0.05
+        local hue = (time * 0.8) % 1
+        local color = Color3.fromHSV(hue, 1, 1)
+        local color2 = Color3.fromHSV((hue + 0.5) % 1, 1, 1)
+
+        swastika.TextColor3 = color
+        mainText.TextColor3 = color2
+
+        angle = (angle + 2) % 360
+        symbolContainer.Rotation = angle
+    end
+
+    RunService.RenderStepped:Connect(updateCrosshair)
+end
 
 local function createGUI()
     if guiInstance then
@@ -1107,7 +1102,6 @@ local function createGUI()
     guiInstance.IgnoreGuiInset = true
     guiInstance.Parent = game:GetService("CoreGui")
 
-    -- Главное окно
     local mainFrame = Instance.new("Frame")
     mainFrame.Name = "MainFrame"
     mainFrame.Size = UDim2.new(0, 700, 0, 500)
@@ -1119,7 +1113,7 @@ local function createGUI()
     mainFrame.Parent = guiInstance
 
     local outerStroke = Instance.new("UIStroke")
-    outerStroke.Color = Color3.new(0, 0, 0) -- чёрная
+    outerStroke.Color = Color3.new(0, 0, 0)
     outerStroke.Thickness = 1.5
     outerStroke.Transparency = 0
     outerStroke.Parent = mainFrame
@@ -1128,7 +1122,6 @@ local function createGUI()
     mainCorner.CornerRadius = UDim.new(0, 10)
     mainCorner.Parent = mainFrame
 
-    -- Верхняя панель
     local topBar = Instance.new("Frame")
     topBar.Name = "TopBar"
     topBar.Size = UDim2.new(1, 0, 0, 45)
@@ -1166,14 +1159,13 @@ local function createGUI()
     version.Size = UDim2.new(0, 100, 1, 0)
     version.Position = UDim2.new(1, -110, 0, 0)
     version.BackgroundTransparency = 1
-    version.Text = "v1.7"
+    version.Text = "v1.8"
     version.TextColor3 = accentColor
     version.Font = Enum.Font.Gotham
     version.TextSize = 14
     version.TextXAlignment = Enum.TextXAlignment.Right
     version.Parent = topBar
 
-    -- Перетаскивание
     do
         local dragging = false
         local dragStart, startPos
@@ -1203,7 +1195,6 @@ local function createGUI()
         end)
     end
 
-    -- Контейнер для вкладок слева
     local tabContainer = Instance.new("Frame")
     tabContainer.Size = UDim2.new(0, 160, 1, -55)
     tabContainer.Position = UDim2.new(0, 10, 0, 50)
@@ -1214,7 +1205,6 @@ local function createGUI()
     tabList.SortOrder = Enum.SortOrder.LayoutOrder
     tabList.Parent = tabContainer
 
-    -- Контейнер контента справа (серый фон)
     local contentContainer = Instance.new("Frame")
     contentContainer.Size = UDim2.new(1, -180, 1, -65)
     contentContainer.Position = UDim2.new(0, 170, 0, 55)
@@ -1226,12 +1216,11 @@ local function createGUI()
     contentCorner.CornerRadius = UDim.new(0, 8)
     contentCorner.Parent = contentContainer
     local contentStroke = Instance.new("UIStroke")
-    contentStroke.Color = Color3.new(0, 0, 0) -- чёрная
+    contentStroke.Color = Color3.new(0, 0, 0)
     contentStroke.Thickness = 1
     contentStroke.Transparency = 0
     contentStroke.Parent = contentContainer
 
-    -- Функции создания элементов
     local function createToggle(parent, text, initialState, callback)
         callback = callback or function() end
         local container = Instance.new("Frame")
@@ -1509,9 +1498,6 @@ local function createGUI()
         return container
     end
 
-    -- ==========================================
-    -- ВКЛАДКИ с двухколоночным расположением
-    -- ==========================================
     local tabs = {}
     local pages = {}
     local function addTab(name)
@@ -1540,7 +1526,6 @@ local function createGUI()
         page.Visible = false
         page.Parent = contentContainer
 
-        -- Два контейнера (левая и правая колонка)
         local leftCol = Instance.new("Frame")
         leftCol.Size = UDim2.new(0.5, -10, 1, 0)
         leftCol.Position = UDim2.new(0, 0, 0, 0)
@@ -1561,7 +1546,6 @@ local function createGUI()
         rightLayout.SortOrder = Enum.SortOrder.LayoutOrder
         rightLayout.Parent = rightCol
 
-        -- Функция для обновления canvas размера
         local function updateCanvas()
             local leftHeight = leftLayout.AbsoluteContentSize.Y
             local rightHeight = rightLayout.AbsoluteContentSize.Y
@@ -1591,7 +1575,6 @@ local function createGUI()
     local visuals = addTab("VISUALS")
     local misc = addTab("MISC")
 
-    -- ========== RAGE ==========
     local silentToggle, setSilent = createToggle(rage.left, "Silent Aim", CombatSettings.SilentEnabled, function(s)
         CombatSettings.SilentEnabled = s
     end)
@@ -1605,7 +1588,6 @@ local function createGUI()
         updateFOVCircle()
     end)
 
-    -- Слайдеры и цвет справа
     createSlider(rage.right, "FOV", 0, 360, CombatSettings.aimFOV, function(v)
         CombatSettings.aimFOV = v
         updateFOVCircle()
@@ -1637,7 +1619,6 @@ local function createGUI()
     task.wait()
     rage.updateCanvas()
 
-    -- ========== ESP (Corner Box + Weapon ESP + Tracer) ==========
     createToggle(esp.left, "Enable Corner Box ESP", ESP_SETTINGS.Enabled, function(s)
         ESP_SETTINGS.Enabled = s
     end)
@@ -1692,7 +1673,6 @@ local function createGUI()
         ESP_SETTINGS.HealthSide = opt
     end)
 
-    -- Weapon ESP и Tracer (правая колонка)
     createToggle(esp.right, "Enable Weapon ESP", WeaponESP.Settings.Enabled, function(s)
         WeaponESP.Settings.Enabled = s
     end)
@@ -1737,8 +1717,6 @@ local function createGUI()
     task.wait()
     esp.updateCanvas()
 
-    -- ========== VISUALS (Chams и Sky) ==========
-    -- Левая колонка – Chams
     local chamsToggle, setChams = createToggle(visuals.left, "Enable Chams", ChamsSettings.Enabled, function(s)
         ChamsSettings.Enabled = s
         UpdateChams()
@@ -1752,7 +1730,6 @@ local function createGUI()
         UpdateChams()
     end)
 
-    -- Правая колонка – Sky
     local skyToggle, setSky = createToggle(visuals.right, "Enable Sky", SkySettings.Enabled, function(s)
         SkySettings.Enabled = s
         UpdateSky()
@@ -1765,8 +1742,6 @@ local function createGUI()
     task.wait()
     visuals.updateCanvas()
 
-    -- ========== MISC ==========
-    -- Левая колонка
     createToggle(misc.left, "Bunny Hop", AutoBhopSettings.Enabled, function(s)
         AutoBhopSettings.Enabled = s
         setupAutoBhop()
@@ -1783,14 +1758,13 @@ local function createGUI()
         FlashbangRemoverEnabled = s
         ToggleFlashbang()
     end)
-
-    -- Правая колонка – пока пусто
-    -- createToggle(misc.right, "Example", false, function(s) end)
+    createToggle(misc.left, "Crosshair", CrosshairSettings.Enabled, function(s)
+        CrosshairSettings.Enabled = s
+    end)
 
     task.wait()
     misc.updateCanvas()
 
-    -- Активируем первую вкладку
     if tabs[1] then
         for _, p in pairs(pages) do p.page.Visible = false end
         for _, btn in pairs(tabs) do
@@ -1809,7 +1783,7 @@ local function createGUI()
     end
 end
 
--- ========== ЗАПУСК ==========
+createCrosshair()
 createGUI()
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
@@ -1822,7 +1796,6 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
--- Инициализация функций
 SetupSilentAim()
 initWeaponESP()
 ToggleWallbang(WallbangEnabled)
@@ -1831,4 +1804,4 @@ RunService.RenderStepped:Connect(updateFOVCircle)
 ToggleSmokeRemover()
 ToggleFlashbang()
 
-print("YOU GAY NO DUMP")
+print("FENT.LOL UI v1.8 loaded. Press RightShift to open.")
