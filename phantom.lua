@@ -13,597 +13,416 @@ if _G.__PASTEHUB_FULLBUILD_INJECTED__ then
 end
 _G.__PASTEHUB_FULLBUILD_INJECTED__ = true
 
--- =========================================================================
--- [ GAMESENSE LOADING BANNER - VOLNE EDITION ]
--- =========================================================================
 do
-local TS     = game:GetService("TweenService")
-local UIS    = game:GetService("UserInputService")
-local RS     = game:GetService("RunService")
-local SS     = game:GetService("SoundService")
-local pl     = game:GetService("Players").LocalPlayer
+-- ============================================================
+-- 🎬 GAMESENSE FUNK EDIT — БЕЗ LOADING В КОНЦЕ
+-- ============================================================
+local SoundService = game:GetService("SoundService")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
 
-local COL = {
-    bg      = Color3.fromRGB(5, 5, 7),
-    line    = Color3.fromRGB(28, 28, 32),
-    wht     = Color3.fromRGB(248, 248, 250),
-    gry     = Color3.fromRGB(70, 70, 78),
-    gry2    = Color3.fromRGB(135, 135, 145),
-    green   = Color3.fromRGB(118, 212, 0),
-    greenHi = Color3.fromRGB(190, 255, 70),
-    greenLo = Color3.fromRGB(45, 85, 0),
-    volne   = Color3.fromRGB(180, 180, 190),
+local LP = Players.LocalPlayer
+local Camera = Workspace.CurrentCamera
+
+local MUSIC_ID = 126400067778923
+local START_AT = 60
+local DURATION = 15
+local VOLUME = 3
+local BEAT = 0.5
+
+local BANNER_TOP = "game"
+local BANNER_BOT = "sense"
+local TAG_TOP = "[ FUNK EDIT ]"
+local AUTHOR = "produced by volne.xyz"
+
+local C = {
+    bg = Color3.fromRGB(3, 3, 5),
+    wht = Color3.fromRGB(255, 255, 255),
+    green = Color3.fromRGB(118, 212, 0),
+    greenHi = Color3.fromRGB(220, 255, 120),
+    red = Color3.fromRGB(255, 20, 70),
+    blue = Color3.fromRGB(0, 200, 255),
+    gry = Color3.fromRGB(70, 70, 78),
 }
 
-local function TW(o, p, t, st, dir)
-    local tween = TS:Create(o, TweenInfo.new(t or .3, st or Enum.EasingStyle.Quad, dir or Enum.EasingDirection.Out), p)
-    tween:Play()
-    return tween
-end
-local function CR(o, r)
-    local c = Instance.new("UICorner", o)
-    c.CornerRadius = UDim.new(0, r or 4)
-end
+local sound = Instance.new("Sound")
+sound.SoundId = "rbxassetid://" .. MUSIC_ID
+sound.Volume = VOLUME
+sound.Looped = false
+sound.Parent = SoundService
+sound.Loaded:Connect(function() sound.TimePosition = START_AT end)
+sound:Play()
 
-local function playTick(pitch, vol)
-    local s = Instance.new("Sound")
-    s.SoundId = "rbxassetid://6895079853"
-    s.Volume = vol or 0.12
-    s.PlaybackSpeed = pitch or 1
-    s.Parent = SS
-    s:Play()
-    task.delay(0.5, function() s:Destroy() end)
-end
-
-local function playBoom()
-    local s = Instance.new("Sound")
-    s.SoundId = "rbxassetid://9118823101"
-    s.Volume = 0.3
-    s.Parent = SS
-    s:Play()
-    task.delay(1.5, function() s:Destroy() end)
+-- ТРЯСКА КАМЕРЫ
+local shakeIntensity = 0
+local shakeEnabled = true
+task.spawn(function()
+    RunService.RenderStepped:Connect(function(dt)
+        if not shakeEnabled or shakeIntensity <= 0 then return end
+        if not Camera then return end
+        local sx = (math.random() - 0.5) * shakeIntensity
+        local sy = (math.random() - 0.5) * shakeIntensity
+        local sr = (math.random() - 0.5) * shakeIntensity * 0.5
+        Camera.CFrame = Camera.CFrame * CFrame.new(sx, sy, 0) * CFrame.Angles(0, 0, math.rad(sr))
+        shakeIntensity = shakeIntensity * 0.85
+        if shakeIntensity < 0.02 then shakeIntensity = 0 end
+    end)
+end)
+local function doCameraShake(intensity)
+    shakeIntensity = math.max(shakeIntensity, intensity)
 end
 
-local old = pl.PlayerGui:FindFirstChild("GSLoading")
-if old then old:Destroy() end
-
-local sg = Instance.new("ScreenGui", pl.PlayerGui)
-sg.Name = "GSLoading"
+-- GUI
+local sg = Instance.new("ScreenGui")
+sg.Name = "FunkEditClean"
 sg.ResetOnSpawn = false
 sg.DisplayOrder = 9999
 sg.IgnoreGuiInset = true
+pcall(function() sg.Parent = game:GetService("CoreGui") end)
+if not sg.Parent then sg.Parent = LP:WaitForChild("PlayerGui") end
 
-local dim = Instance.new("Frame", sg)
+local function TW(o, p, t, st, dir)
+    local tw = TweenService:Create(o, TweenInfo.new(t or 0.2, st or Enum.EasingStyle.Quad, dir or Enum.EasingDirection.Out), p)
+    tw:Play()
+    return tw
+end
+
+local shake = Instance.new("Frame", sg)
+shake.Size = UDim2.new(1, 0, 1, 0)
+shake.BackgroundTransparency = 1
+shake.ZIndex = 2
+
+-- ФОН
+local dim = Instance.new("Frame", shake)
 dim.Size = UDim2.new(1, 0, 1, 0)
-dim.BackgroundColor3 = COL.bg
+dim.BackgroundColor3 = Color3.new(0, 0, 0)
 dim.BackgroundTransparency = 1
 dim.BorderSizePixel = 0
 dim.ZIndex = 1
-TW(dim, {BackgroundTransparency = 0.05}, 0.5)
+TW(dim, {BackgroundTransparency = 0.4}, 0.3)
 
-local vignette = Instance.new("ImageLabel", sg)
+-- СЕТКА
+local gridHolder = Instance.new("Frame", shake)
+gridHolder.Size = UDim2.new(1, 0, 1, 0)
+gridHolder.BackgroundTransparency = 1
+gridHolder.ZIndex = 2
+for i = 0, 40 do
+    local vline = Instance.new("Frame", gridHolder)
+    vline.Size = UDim2.new(0, 1, 1, 0)
+    vline.Position = UDim2.new(i / 40, 0, 0, 0)
+    vline.BackgroundColor3 = C.green
+    vline.BackgroundTransparency = 0.92
+    vline.BorderSizePixel = 0
+    vline.ZIndex = 2
+end
+for i = 0, 25 do
+    local hline = Instance.new("Frame", gridHolder)
+    hline.Size = UDim2.new(1, 0, 0, 1)
+    hline.Position = UDim2.new(0, 0, i / 25, 0)
+    hline.BackgroundColor3 = C.green
+    hline.BackgroundTransparency = 0.92
+    hline.BorderSizePixel = 0
+    hline.ZIndex = 2
+end
+
+-- ВИНЬЕТКА
+local vignette = Instance.new("ImageLabel", shake)
 vignette.Size = UDim2.new(1, 0, 1, 0)
 vignette.BackgroundTransparency = 1
 vignette.Image = "rbxassetid://8992230677"
 vignette.ImageColor3 = Color3.new(0, 0, 0)
 vignette.ImageTransparency = 1
 vignette.ScaleType = Enum.ScaleType.Stretch
-vignette.ZIndex = 2
-TW(vignette, {ImageTransparency = 0.35}, 0.8)
+vignette.ZIndex = 3
+TW(vignette, {ImageTransparency = 0.25}, 0.5)
 
-local scanHolder = Instance.new("Frame", sg)
+-- ШУМ
+local noise = Instance.new("ImageLabel", shake)
+noise.Size = UDim2.new(1, 0, 1, 0)
+noise.BackgroundTransparency = 1
+noise.Image = "rbxassetid://5028857472"
+noise.ImageColor3 = Color3.new(1, 1, 1)
+noise.ImageTransparency = 1
+noise.ScaleType = Enum.ScaleType.Tile
+noise.TileSize = UDim2.new(0, 200, 0, 200)
+noise.ZIndex = 4
+TW(noise, {ImageTransparency = 0.85}, 0.5)
+task.spawn(function()
+    while sg.Parent do
+        noise.Position = UDim2.new(math.random(-20, 20) / 100, 0, math.random(-20, 20) / 100, 0)
+        task.wait(0.05)
+    end
+end)
+
+-- СКАНЛАЙНЫ
+local scanHolder = Instance.new("Frame", shake)
 scanHolder.Size = UDim2.new(1, 0, 1, 0)
 scanHolder.BackgroundTransparency = 1
-scanHolder.ZIndex = 3
-scanHolder.ClipsDescendants = true
-
-for y = 0, 140 do
+scanHolder.ZIndex = 5
+for y = 0, 130 do
     local line = Instance.new("Frame", scanHolder)
     line.Size = UDim2.new(1, 0, 0, 1)
-    line.Position = UDim2.new(0, 0, y / 140, 0)
+    line.Position = UDim2.new(0, 0, y / 130, 0)
     line.BackgroundColor3 = Color3.new(0, 0, 0)
     line.BackgroundTransparency = 0.88
     line.BorderSizePixel = 0
-    line.ZIndex = 3
+    line.ZIndex = 5
 end
 
-local topLine = Instance.new("Frame", sg)
-topLine.Size = UDim2.new(0, 0, 0, 1)
-topLine.Position = UDim2.new(0.5, 0, 0.5, -125)
-topLine.AnchorPoint = Vector2.new(0.5, 0.5)
-topLine.BackgroundColor3 = COL.green
-topLine.BorderSizePixel = 0
-topLine.ZIndex = 4
+-- ЛОГО
+local logoHolder = Instance.new("Frame", shake)
+logoHolder.Size = UDim2.new(0, 900, 0, 200)
+logoHolder.Position = UDim2.new(0.5, -450, 0.5, -100)
+logoHolder.BackgroundTransparency = 1
+logoHolder.ZIndex = 10
 
-local topGlow = Instance.new("ImageLabel", topLine)
-topGlow.Size = UDim2.new(1, 0, 0, 18)
-topGlow.Position = UDim2.new(0, 0, 0.5, 0)
-topGlow.AnchorPoint = Vector2.new(0, 0.5)
-topGlow.BackgroundTransparency = 1
-topGlow.Image = "rbxassetid://5028857472"
-topGlow.ImageColor3 = COL.green
-topGlow.ImageTransparency = 0.4
-topGlow.ZIndex = 3
+local gameLbl = Instance.new("TextLabel", logoHolder)
+gameLbl.Size = UDim2.new(0.5, 0, 1, 0)
+gameLbl.BackgroundTransparency = 1
+gameLbl.Text = BANNER_TOP
+gameLbl.TextColor3 = C.wht
+gameLbl.Font = Enum.Font.GothamBlack
+gameLbl.TextSize = 130
+gameLbl.TextXAlignment = Enum.TextXAlignment.Right
+gameLbl.ZIndex = 20
+gameLbl.TextTransparency = 1
 
-local botLine = topLine:Clone()
-botLine.Position = UDim2.new(0.5, 0, 0.5, 125)
-botLine.Parent = sg
+local senseLbl = Instance.new("TextLabel", logoHolder)
+senseLbl.Size = UDim2.new(0.5, 0, 1, 0)
+senseLbl.Position = UDim2.new(0.5, 0, 0, 0)
+senseLbl.BackgroundTransparency = 1
+senseLbl.Text = BANNER_BOT
+senseLbl.TextColor3 = C.green
+senseLbl.Font = Enum.Font.GothamBlack
+senseLbl.TextSize = 130
+senseLbl.TextXAlignment = Enum.TextXAlignment.Left
+senseLbl.ZIndex = 20
+senseLbl.TextTransparency = 1
 
-local corners = {
-    {x=0, y=0},
-    {x=1, y=0},
-    {x=0, y=1},
-    {x=1, y=1},
-}
-for _, c in ipairs(corners) do
-    local mark = Instance.new("Frame", sg)
-    mark.Size = UDim2.new(0, 16, 0, 2)
-    mark.Position = UDim2.new(c.x, c.x == 0 and 20 or -36, c.y, c.y == 0 and 20 or -22)
-    mark.BackgroundColor3 = COL.green
-    mark.BorderSizePixel = 0
-    mark.ZIndex = 4
-    mark.BackgroundTransparency = 1
-    TW(mark, {BackgroundTransparency = 0.3}, 0.6)
+for depth = 5, 1, -1 do
+    local g3d = gameLbl:Clone()
+    g3d.TextColor3 = Color3.new(0, 0, 0)
+    g3d.Position = UDim2.new(0, depth, 0, depth)
+    g3d.ZIndex = 19
+    g3d.TextTransparency = 1
+    g3d.Name = "Depth" .. depth
+    g3d.Parent = logoHolder
+    local s3d = senseLbl:Clone()
+    s3d.TextColor3 = Color3.new(0, 0, 0)
+    s3d.Position = UDim2.new(0.5, depth, 0, depth)
+    s3d.ZIndex = 19
+    s3d.TextTransparency = 1
+    s3d.Name = "Depth" .. depth
+    s3d.Parent = logoHolder
 end
 
-local logo = Instance.new("Frame", sg)
-logo.Size = UDim2.new(0, 900, 0, 140)
-logo.Position = UDim2.new(0.5, 0, 0.5, -60)
-logo.AnchorPoint = Vector2.new(0.5, 0.5)
-logo.BackgroundTransparency = 1
-logo.ZIndex = 6
+local gameRed = gameLbl:Clone(); gameRed.TextColor3 = C.red;  gameRed.ZIndex = 18; gameRed.Parent = logoHolder
+local gameBlue = gameLbl:Clone(); gameBlue.TextColor3 = C.blue; gameBlue.ZIndex = 18; gameBlue.Parent = logoHolder
+local senseRed = senseLbl:Clone(); senseRed.TextColor3 = C.red;  senseRed.ZIndex = 18; senseRed.Parent = logoHolder
+local senseBlue = senseLbl:Clone(); senseBlue.TextColor3 = C.blue; senseBlue.ZIndex = 18; senseBlue.Parent = logoHolder
 
-local logoGlow = Instance.new("ImageLabel", logo)
-logoGlow.Size = UDim2.new(0.85, 0, 1.2, 0)
-logoGlow.Position = UDim2.new(0.5, 0, 0.5, 0)
-logoGlow.AnchorPoint = Vector2.new(0.5, 0.5)
-logoGlow.BackgroundTransparency = 1
-logoGlow.Image = "rbxassetid://5028857472"
-logoGlow.ImageColor3 = COL.green
-logoGlow.ImageTransparency = 1
-logoGlow.ZIndex = 5
-TW(logoGlow, {ImageTransparency = 0.72}, 1.2)
-
-local LETTERS = {
-    {char="g", color=COL.wht}, {char="a", color=COL.wht},
-    {char="m", color=COL.wht}, {char="e", color=COL.wht},
-    {char="s", color=COL.green}, {char="e", color=COL.green},
-    {char="n", color=COL.green}, {char="s", color=COL.green},
-    {char="e", color=COL.green},
-}
-
-local LETTER_SIZE    = 130
-local LETTER_SPACING = 102
-local totalW  = LETTER_SPACING * #LETTERS
-local startX  = -(totalW / 2)
-
-local letterLabels = {}
-
-for i, data in ipairs(LETTERS) do
-    local xOff = startX + (i - 1) * LETTER_SPACING + LETTER_SPACING / 2
-
-    local letterHolder = Instance.new("Frame", logo)
-    letterHolder.Size = UDim2.new(0, LETTER_SPACING, 1, 0)
-    letterHolder.Position = UDim2.new(0.5, xOff - LETTER_SPACING/2, 0, 0)
-    letterHolder.BackgroundTransparency = 1
-    letterHolder.ZIndex = 6
-
-    local letterGlow = Instance.new("ImageLabel", letterHolder)
-    letterGlow.Size = UDim2.new(1.6, 0, 1.4, 0)
-    letterGlow.Position = UDim2.new(0.5, 0, 0.5, 0)
-    letterGlow.AnchorPoint = Vector2.new(0.5, 0.5)
-    letterGlow.BackgroundTransparency = 1
-    letterGlow.Image = "rbxassetid://5028857472"
-    letterGlow.ImageColor3 = data.color
-    letterGlow.ImageTransparency = 1
-    letterGlow.ZIndex = 5
-
-    local shadow = Instance.new("TextLabel", letterHolder)
-    shadow.Size = UDim2.new(1, 0, 1, 0)
-    shadow.Position = UDim2.new(0, 4, 0, 5)
-    shadow.BackgroundTransparency = 1
-    shadow.Text = data.char
-    shadow.TextColor3 = Color3.new(0, 0, 0)
-    shadow.Font = Enum.Font.GothamBlack
-    shadow.TextSize = LETTER_SIZE
-    shadow.ZIndex = 6
-    shadow.TextTransparency = 1
-
-    local lbl = Instance.new("TextLabel", letterHolder)
-    lbl.Size = UDim2.new(1, 0, 1, 0)
-    lbl.BackgroundTransparency = 1
-    lbl.Text = data.char
-    lbl.TextColor3 = data.color
-    lbl.Font = Enum.Font.GothamBlack
-    lbl.TextSize = LETTER_SIZE
-    lbl.ZIndex = 7
-    lbl.TextTransparency = 1
-
-    lbl.Position = UDim2.new(0, 0, -0.6, 0)
-    shadow.Position = UDim2.new(0, 4, -0.6, 5)
-
-    letterLabels[i] = {
-        holder = letterHolder,
-        lbl = lbl,
-        shadow = shadow,
-        glow = letterGlow,
-        color = data.color,
-        char = data.char,
-    }
-end
-
-task.spawn(function()
-    task.wait(0.25)
-    playBoom()
-
-    for i, L in ipairs(letterLabels) do
-        TW(L.lbl, {Position = UDim2.new(0, 0, 0, 0)}, 0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-        TW(L.shadow, {Position = UDim2.new(0, 4, 0, 5)}, 0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-
-        task.spawn(function()
-            TW(L.lbl, {TextTransparency = 0}, 0.3)
-            TW(L.shadow, {TextTransparency = 0.55}, 0.3)
-            TW(L.glow, {ImageTransparency = 0.5}, 0.15)
-            task.wait(0.15)
-            TW(L.glow, {ImageTransparency = 0.9}, 0.4)
-        end)
-
-        playTick(1 + i * 0.09, 0.09)
-        task.wait(0.075)
-    end
-
-    task.wait(0.2)
-    for _, L in ipairs(letterLabels) do
-        task.spawn(function()
-            TW(L.lbl, {TextSize = LETTER_SIZE + 10}, 0.15, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-            task.wait(0.15)
-            TW(L.lbl, {TextSize = LETTER_SIZE}, 0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-        end)
-    end
-    playTick(2.2, 0.16)
-end)
-
-local underline = Instance.new("Frame", logo)
-underline.Size = UDim2.new(0, 0, 0, 2)
-underline.Position = UDim2.new(0.5, 0, 1, -14)
+local underline = Instance.new("Frame", logoHolder)
+underline.Size = UDim2.new(0, 0, 0, 3)
+underline.Position = UDim2.new(0.5, 0, 1, -15)
 underline.AnchorPoint = Vector2.new(0.5, 0.5)
-underline.BackgroundColor3 = COL.green
+underline.BackgroundColor3 = C.green
 underline.BorderSizePixel = 0
-underline.ZIndex = 8
+underline.ZIndex = 21
 
-local underlineGlow = Instance.new("ImageLabel", underline)
-underlineGlow.Size = UDim2.new(1, 60, 0, 22)
-underlineGlow.Position = UDim2.new(0.5, 0, 0.5, 0)
-underlineGlow.AnchorPoint = Vector2.new(0.5, 0.5)
-underlineGlow.BackgroundTransparency = 1
-underlineGlow.Image = "rbxassetid://5028857472"
-underlineGlow.ImageColor3 = COL.greenHi
-underlineGlow.ImageTransparency = 0.4
-underlineGlow.ZIndex = 7
+local tagLbl = Instance.new("TextLabel", shake)
+tagLbl.Size = UDim2.new(1, 0, 0, 24)
+tagLbl.Position = UDim2.new(0.5, 0, 0.5, 125)
+tagLbl.AnchorPoint = Vector2.new(0.5, 0.5)
+tagLbl.BackgroundTransparency = 1
+tagLbl.Text = TAG_TOP
+tagLbl.TextColor3 = C.gry
+tagLbl.Font = Enum.Font.Code
+tagLbl.TextSize = 18
+tagLbl.ZIndex = 10
+tagLbl.TextTransparency = 1
 
+local authLbl = Instance.new("TextLabel", shake)
+authLbl.Size = UDim2.new(0, 400, 0, 20)
+authLbl.Position = UDim2.new(0.5, 0, 0.5, 155)
+authLbl.AnchorPoint = Vector2.new(0.5, 0.5)
+authLbl.BackgroundTransparency = 1
+authLbl.Text = AUTHOR
+authLbl.TextColor3 = C.green
+authLbl.Font = Enum.Font.Code
+authLbl.TextSize = 13
+authLbl.ZIndex = 10
+authLbl.TextTransparency = 1
+
+local flash = Instance.new("Frame", shake)
+flash.Size = UDim2.new(1, 0, 1, 0)
+flash.BackgroundColor3 = C.green
+flash.BackgroundTransparency = 1
+flash.BorderSizePixel = 0
+flash.ZIndex = 100
+
+-- ЧАСТИЦЫ
+local particleHolder = Instance.new("Frame", shake)
+particleHolder.Size = UDim2.new(1, 0, 1, 0)
+particleHolder.BackgroundTransparency = 1
+particleHolder.ZIndex = 8
+
+local particles = {}
+for i = 1, 15 do
+    local p = Instance.new("Frame", particleHolder)
+    p.Size = UDim2.new(0, 4, 0, 4)
+    p.Position = UDim2.new(0.5, 0, 0.5, 0)
+    p.AnchorPoint = Vector2.new(0.5, 0.5)
+    p.BackgroundColor3 = i % 2 == 0 and C.green or C.greenHi
+    p.BorderSizePixel = 0
+    p.BackgroundTransparency = 1
+    p.ZIndex = 8
+    local c = Instance.new("UICorner", p)
+    c.CornerRadius = UDim.new(1, 0)
+    particles[i] = p
+end
+
+local function burstParticles(count)
+    count = count or 10
+    for i = 1, count do
+        local p = particles[i]
+        if not p then continue end
+        local angle = math.random() * math.pi * 2
+        local dist = 120 + math.random() * 150
+        p.Position = UDim2.new(0.5, 0, 0.5, 0)
+        p.BackgroundTransparency = 0
+        local sz = math.random(3, 6)
+        p.Size = UDim2.new(0, sz, 0, sz)
+        TW(p, {
+            Position = UDim2.new(0.5, math.cos(angle) * dist, 0.5, math.sin(angle) * dist),
+            BackgroundTransparency = 1,
+            Size = UDim2.new(0, 1, 0, 1)
+        }, 0.6, Enum.EasingStyle.Quint)
+    end
+end
+
+-- ПОЯВЛЕНИЕ
 task.spawn(function()
-    task.wait(1.0)
-    TW(underline, {Size = UDim2.new(0, 860, 0, 2)}, 0.6, Enum.EasingStyle.Quint)
-end)
-
-local statusLbl = Instance.new("TextLabel", sg)
-statusLbl.Size = UDim2.new(0, 800, 0, 18)
-statusLbl.Position = UDim2.new(0.5, 0, 0.5, 85)
-statusLbl.AnchorPoint = Vector2.new(0.5, 0.5)
-statusLbl.BackgroundTransparency = 1
-statusLbl.Text = "> initializing"
-statusLbl.TextColor3 = COL.gry2
-statusLbl.Font = Enum.Font.Code
-statusLbl.TextSize = 14
-statusLbl.TextXAlignment = Enum.TextXAlignment.Center
-statusLbl.ZIndex = 6
-statusLbl.TextTransparency = 1
-
-local cursor = Instance.new("TextLabel", statusLbl)
-cursor.Size = UDim2.new(0, 10, 1, 0)
-cursor.Position = UDim2.new(1, 4, 0, 0)
-cursor.BackgroundTransparency = 1
-cursor.Text = "_"
-cursor.TextColor3 = COL.green
-cursor.Font = Enum.Font.Code
-cursor.TextSize = 14
-cursor.ZIndex = 6
-cursor.TextTransparency = 1
-
-local barBg = Instance.new("Frame", sg)
-barBg.Size = UDim2.new(0, 620, 0, 3)
-barBg.Position = UDim2.new(0.5, 0, 0.5, 118)
-barBg.AnchorPoint = Vector2.new(0.5, 0.5)
-barBg.BackgroundColor3 = COL.line
-barBg.BorderSizePixel = 0
-barBg.ZIndex = 6
-barBg.BackgroundTransparency = 1
-CR(barBg, 2)
-
-local barFill = Instance.new("Frame", barBg)
-barFill.Size = UDim2.new(0, 0, 1, 0)
-barFill.BackgroundColor3 = COL.green
-barFill.BorderSizePixel = 0
-barFill.ZIndex = 7
-CR(barFill, 2)
-
-local barFillGlow = Instance.new("ImageLabel", barFill)
-barFillGlow.Size = UDim2.new(1, 30, 0, 20)
-barFillGlow.Position = UDim2.new(0.5, 0, 0.5, 0)
-barFillGlow.AnchorPoint = Vector2.new(0.5, 0.5)
-barFillGlow.BackgroundTransparency = 1
-barFillGlow.Image = "rbxassetid://5028857472"
-barFillGlow.ImageColor3 = COL.greenHi
-barFillGlow.ImageTransparency = 0.3
-barFillGlow.ZIndex = 8
-
-local barDot = Instance.new("Frame", barBg)
-barDot.Size = UDim2.new(0, 8, 0, 8)
-barDot.Position = UDim2.new(0, -4, 0.5, -4)
-barDot.BackgroundColor3 = COL.greenHi
-barDot.BorderSizePixel = 0
-barDot.ZIndex = 9
-CR(barDot, 4)
-
-local barDotGlow = Instance.new("ImageLabel", barDot)
-barDotGlow.Size = UDim2.new(3, 0, 3, 0)
-barDotGlow.Position = UDim2.new(0.5, 0, 0.5, 0)
-barDotGlow.AnchorPoint = Vector2.new(0.5, 0.5)
-barDotGlow.BackgroundTransparency = 1
-barDotGlow.Image = "rbxassetid://5028857472"
-barDotGlow.ImageColor3 = COL.greenHi
-barDotGlow.ImageTransparency = 0.2
-barDotGlow.ZIndex = 8
-
-local pctLeft = Instance.new("TextLabel", sg)
-pctLeft.Size = UDim2.new(0, 60, 0, 14)
-pctLeft.Position = UDim2.new(0.5, -310, 0.5, 136)
-pctLeft.BackgroundTransparency = 1
-pctLeft.Text = "0%"
-pctLeft.TextColor3 = COL.green
-pctLeft.Font = Enum.Font.Code
-pctLeft.TextSize = 12
-pctLeft.TextXAlignment = Enum.TextXAlignment.Left
-pctLeft.ZIndex = 6
-pctLeft.TextTransparency = 1
-
-local pctRight = pctLeft:Clone()
-pctRight.Position = UDim2.new(0.5, 310, 0.5, 136)
-pctRight.TextXAlignment = Enum.TextXAlignment.Right
-pctRight.TextColor3 = COL.gry2
-pctRight.Text = "100%"
-pctRight.Parent = sg
-
-local verLbl = Instance.new("TextLabel", sg)
-verLbl.Size = UDim2.new(0, 350, 0, 20)
-verLbl.Position = UDim2.new(1, -370, 0, 20)
-verLbl.BackgroundTransparency = 1
-verLbl.Text = "gamesense  •  v1.0  •  undetected"
-verLbl.TextColor3 = COL.gry
-verLbl.Font = Enum.Font.Code
-verLbl.TextSize = 11
-verLbl.TextXAlignment = Enum.TextXAlignment.Right
-verLbl.ZIndex = 6
-verLbl.TextTransparency = 1
-
-local betaLbl = verLbl:Clone()
-betaLbl.Position = UDim2.new(0, 20, 0, 20)
-betaLbl.TextXAlignment = Enum.TextXAlignment.Left
-betaLbl.Text = "[ BETA BUILD ]"
-betaLbl.TextColor3 = COL.greenLo
-betaLbl.Parent = sg
-
-local volneLbl = Instance.new("TextLabel", sg)
-volneLbl.Size = UDim2.new(0, 400, 0, 16)
-volneLbl.Position = UDim2.new(0.5, 0, 1, -28)
-volneLbl.AnchorPoint = Vector2.new(0.5, 0.5)
-volneLbl.BackgroundTransparency = 1
-volneLbl.Text = "volne.xyz"
-volneLbl.TextColor3 = COL.volne
-volneLbl.Font = Enum.Font.Code
-volneLbl.TextSize = 13
-volneLbl.TextXAlignment = Enum.TextXAlignment.Center
-volneLbl.ZIndex = 6
-volneLbl.TextTransparency = 1
-
-local volneGlow = Instance.new("ImageLabel", volneLbl)
-volneGlow.Size = UDim2.new(1.5, 0, 2, 0)
-volneGlow.Position = UDim2.new(0.5, 0, 0.5, 0)
-volneGlow.AnchorPoint = Vector2.new(0.5, 0.5)
-volneGlow.BackgroundTransparency = 1
-volneGlow.Image = "rbxassetid://5028857472"
-volneGlow.ImageColor3 = COL.volne
-volneGlow.ImageTransparency = 1
-volneGlow.ZIndex = 5
-
-local volneLineL = Instance.new("Frame", sg)
-volneLineL.Size = UDim2.new(0, 0, 0, 1)
-volneLineL.Position = UDim2.new(0.5, -80, 1, -28)
-volneLineL.AnchorPoint = Vector2.new(1, 0.5)
-volneLineL.BackgroundColor3 = COL.gry
-volneLineL.BorderSizePixel = 0
-volneLineL.ZIndex = 6
-
-local volneLineR = volneLineL:Clone()
-volneLineR.Position = UDim2.new(0.5, 80, 1, -28)
-volneLineR.AnchorPoint = Vector2.new(0, 0.5)
-volneLineR.Parent = sg
-
-task.spawn(function()
-    task.wait(1.4)
-    TW(statusLbl, {TextTransparency = 0}, 0.3)
-    TW(cursor,    {TextTransparency = 0}, 0.3)
-    TW(barBg,     {BackgroundTransparency = 0}, 0.3)
-    TW(pctLeft,   {TextTransparency = 0}, 0.3)
-    TW(pctRight,  {TextTransparency = 0.3}, 0.3)
-    TW(verLbl,    {TextTransparency = 0.4}, 0.3)
-    TW(betaLbl,   {TextTransparency = 0.4}, 0.3)
-
+    task.wait(0.1)
+    gameLbl.Position = UDim2.new(0, -120, 0, 0)
+    senseLbl.Position = UDim2.new(0.5, 120, 0, 0)
+    TW(gameLbl, {Position = UDim2.new(0, 0, 0, 0), TextTransparency = 0}, 0.45, Enum.EasingStyle.Back)
+    TW(senseLbl, {Position = UDim2.new(0.5, 0, 0, 0), TextTransparency = 0}, 0.45, Enum.EasingStyle.Back)
+    for _, ch in ipairs(logoHolder:GetChildren()) do
+        if ch.Name:sub(1, 5) == "Depth" then
+            TW(ch, {TextTransparency = 0}, 0.45, Enum.EasingStyle.Back)
+        end
+    end
+    doCameraShake(3)
     task.wait(0.3)
-    local fullText = "volne.xyz"
-    volneLbl.Text = ""
-    TW(volneLbl, {TextTransparency = 0}, 0.2)
-    TW(volneGlow, {ImageTransparency = 0.75}, 0.5)
+    flash.BackgroundTransparency = 0.3
+    TW(flash, {BackgroundTransparency = 1}, 0.35)
+    task.wait(0.2)
+    TW(underline, {Size = UDim2.new(0.7, 0, 0, 3)}, 0.45, Enum.EasingStyle.Quint)
+    TW(tagLbl, {TextTransparency = 0}, 0.3)
+    TW(authLbl, {TextTransparency = 0.3}, 0.3)
+end)
 
-    for i = 1, #fullText do
-        volneLbl.Text = fullText:sub(1, i)
-        playTick(1.8 + i * 0.05, 0.04)
-        task.wait(0.045)
+-- БИТ-УДАРЫ
+task.spawn(function()
+    task.wait(0.9)
+    while sg.Parent do
+        gameRed.Position = UDim2.new(0, 22, 0, -5)
+        gameBlue.Position = UDim2.new(0, -22, 0, 5)
+        senseRed.Position = UDim2.new(0.5, 22, 0, -5)
+        senseBlue.Position = UDim2.new(0.5, -22, 0, 5)
+        gameRed.TextTransparency = 0.1
+        gameBlue.TextTransparency = 0.1
+        senseRed.TextTransparency = 0.1
+        senseBlue.TextTransparency = 0.1
+        logoHolder.Position = UDim2.new(0.5, -450 + math.random(-10, 10), 0.5, -100 + math.random(-6, 6))
+        gameLbl.TextSize = 148
+        senseLbl.TextSize = 148
+        flash.BackgroundTransparency = 0.82
+        flash.BackgroundColor3 = (math.random() > 0.5) and C.green or C.greenHi
+        burstParticles(10)
+        doCameraShake(3)
+        task.wait(0.06)
+        TW(gameRed, {Position = UDim2.new(0, 10, 0, -2), TextTransparency = 0.5}, 0.15)
+        TW(gameBlue, {Position = UDim2.new(0, -10, 0, 2), TextTransparency = 0.5}, 0.15)
+        TW(senseRed, {Position = UDim2.new(0.5, 10, 0, -2), TextTransparency = 0.5}, 0.15)
+        TW(senseBlue, {Position = UDim2.new(0.5, -10, 0, 2), TextTransparency = 0.5}, 0.15)
+        TW(logoHolder, {Position = UDim2.new(0.5, -450, 0.5, -100)}, 0.15, Enum.EasingStyle.Back)
+        TW(gameLbl, {TextSize = 130}, 0.15, Enum.EasingStyle.Back)
+        TW(senseLbl, {TextSize = 130}, 0.15, Enum.EasingStyle.Back)
+        TW(flash, {BackgroundTransparency = 1}, 0.15)
+        task.wait(BEAT - 0.06)
     end
+end)
 
-    task.wait(0.15)
-    TW(volneGlow, {ImageTransparency = 0.5}, 0.3)
-    task.wait(0.3)
-    TW(volneGlow, {ImageTransparency = 0.8}, 0.5)
+task.spawn(function()
+    while sg.Parent do
+        TW(underline, {BackgroundColor3 = C.greenHi}, 0.25)
+        task.wait(0.25)
+        TW(underline, {BackgroundColor3 = C.green}, 0.25)
+        task.wait(0.25)
+    end
+end)
 
-    TW(volneLineL, {Size = UDim2.new(0, 60, 0, 1)}, 0.5, Enum.EasingStyle.Quint)
-    TW(volneLineR, {Size = UDim2.new(0, 60, 0, 1)}, 0.5, Enum.EasingStyle.Quint)
+task.spawn(function()
+    task.wait(1)
+    while sg.Parent do
+        TW(gameLbl, {Position = UDim2.new(0, 0, 0, -4)}, 0.35, Enum.EasingStyle.Sine)
+        TW(senseLbl, {Position = UDim2.new(0.5, 0, 0, 4)}, 0.35, Enum.EasingStyle.Sine)
+        task.wait(0.35)
+        TW(gameLbl, {Position = UDim2.new(0, 0, 0, 4)}, 0.35, Enum.EasingStyle.Sine)
+        TW(senseLbl, {Position = UDim2.new(0.5, 0, 0, -4)}, 0.35, Enum.EasingStyle.Sine)
+        task.wait(0.35)
+    end
+end)
 
-    task.spawn(function()
-        while sg.Parent do
-            TW(volneLbl, {TextColor3 = COL.greenHi}, 1.4)
-            TW(volneGlow, {ImageTransparency = 0.6}, 1.4)
-            task.wait(1.4)
-            TW(volneLbl, {TextColor3 = COL.volne}, 1.4)
-            TW(volneGlow, {ImageTransparency = 0.85}, 1.4)
-            task.wait(1.4)
+-- ФИНАЛ — просто взрыв и исчезновение (без loading)
+task.spawn(function()
+    task.wait(DURATION - 1.5)
+
+    -- Финальный взрыв
+    flash.BackgroundTransparency = 0.15
+    flash.BackgroundColor3 = C.greenHi
+    TW(flash, {BackgroundTransparency = 1}, 0.7)
+    gameLbl.TextSize = 200
+    senseLbl.TextSize = 200
+    doCameraShake(15)
+    burstParticles(15)
+
+    task.wait(0.25)
+
+    -- Разлёт + затухание
+    TW(gameLbl, {Position = UDim2.new(0, -300, 0, 0), TextTransparency = 1, TextSize = 130}, 0.7, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
+    TW(senseLbl, {Position = UDim2.new(0.5, 300, 0, 0), TextTransparency = 1, TextSize = 130}, 0.7, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
+    TW(gameRed, {Position = UDim2.new(0, -320, 0, 0), TextTransparency = 1}, 0.7, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
+    TW(gameBlue, {Position = UDim2.new(0, -280, 0, 0), TextTransparency = 1}, 0.7, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
+    TW(senseRed, {Position = UDim2.new(0.5, 280, 0, 0), TextTransparency = 1}, 0.7, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
+    TW(senseBlue, {Position = UDim2.new(0.5, 320, 0, 0), TextTransparency = 1}, 0.7, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
+    for _, ch in ipairs(logoHolder:GetChildren()) do
+        if ch.Name:sub(1, 5) == "Depth" then
+            TW(ch, {TextTransparency = 1}, 0.6)
         end
-    end)
-end)
-
-local statuses = {
-    "initializing",
-    "loading modules",
-    "hooking functions",
-    "reading configs",
-    "verifying integrity",
-    "ready",
-}
-local total = #statuses
-local progress = 0
-
-task.spawn(function()
-    task.wait(1.7)
-    for i = 1, total do
-        statusLbl.Text = "> " .. statuses[i]
-        local target = (i / total) * 100
-        local start = progress
-        local t0 = tick()
-        local dur = 0.45 + math.random() * 0.35
-        while tick() - t0 < dur do
-            local a = math.clamp((tick() - t0) / dur, 0, 1)
-            a = a < 0.5 and 2*a*a or 1 - math.pow(-2*a + 2, 2) / 2
-            progress = start + (target - start) * a
-            local p = progress / 100
-            barFill.Size = UDim2.new(p, 0, 1, 0)
-            barDot.Position = UDim2.new(p, -4, 0.5, -4)
-            pctLeft.Text = string.format("%d%%", math.floor(progress))
-            RS.RenderStepped:Wait()
-        end
-        progress = target
-        if i < total then playTick(1 + i * 0.12, 0.06) end
-        task.wait(0.08)
     end
+    TW(underline, {Size = UDim2.new(0, 0, 0, 3)}, 0.5, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
+    TW(tagLbl, {TextTransparency = 1}, 0.4)
+    TW(authLbl, {TextTransparency = 1}, 0.4)
+    TW(noise, {ImageTransparency = 1}, 0.6)
+    TW(vignette, {ImageTransparency = 1}, 0.7)
+    TW(dim, {BackgroundTransparency = 1}, 0.7)
+
+    task.wait(0.9)
+    shakeEnabled = false
+    sg:Destroy()
+
 end)
 
-task.spawn(function()
-    while sg.Parent do
-        TW(logoGlow, {ImageTransparency = 0.6}, 1.4)
-        task.wait(1.4)
-        TW(logoGlow, {ImageTransparency = 0.82}, 1.4)
-        task.wait(1.4)
-    end
+task.delay(DURATION, function()
+    sound:Stop()
+    sound:Destroy()
+    shakeEnabled = false
 end)
-
-task.spawn(function()
-    while sg.Parent do
-        TW(barDot, {BackgroundColor3 = COL.greenHi}, 0.5)
-        task.wait(0.5)
-        TW(barDot, {BackgroundColor3 = COL.green}, 0.5)
-        task.wait(0.5)
-    end
-end)
-
-task.spawn(function()
-    while sg.Parent do
-        cursor.TextTransparency = 0
-        task.wait(0.5)
-        cursor.TextTransparency = 1
-        task.wait(0.5)
-    end
-end)
-
-task.spawn(function()
-    while sg.Parent do
-        TW(underlineGlow, {ImageTransparency = 0.2}, 0.9)
-        task.wait(0.9)
-        TW(underlineGlow, {ImageTransparency = 0.55}, 0.9)
-        task.wait(0.9)
-    end
-end)
-
-task.spawn(function()
-    task.wait(1.7)
-    while sg.Parent do
-        for i, L in ipairs(letterLabels) do
-            local amp = (i % 2 == 0) and 2 or -2
-            TW(L.lbl, {Position = UDim2.new(0, 0, 0, amp)}, 1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
-        end
-        task.wait(1.5)
-        for i, L in ipairs(letterLabels) do
-            TW(L.lbl, {Position = UDim2.new(0, 0, 0, 0)}, 1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
-        end
-        task.wait(1.5)
-    end
-end)
-
-task.wait(6)
-
-statusLbl.Text = "> ready"
-TW(statusLbl, {TextColor3 = COL.greenHi}, 0.3)
-playTick(2, 0.15)
-
-task.wait(0.8)
-
-for i, L in ipairs(letterLabels) do
-    local dir = (i <= #letterLabels / 2) and -1 or 1
-    local offset = dir * (60 + i * 8)
-    task.spawn(function()
-        TW(L.lbl, {Position = UDim2.new(0, offset, 0, -60), TextTransparency = 1}, 0.6, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
-        TW(L.shadow, {Position = UDim2.new(0, offset + 4, 0, -55), TextTransparency = 1}, 0.6, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
-        TW(L.glow, {ImageTransparency = 1}, 0.5)
-    end)
 end
-
-TW(underline,     {Size = UDim2.new(0, 0, 0, 2)}, 0.5, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
-TW(topLine,       {Size = UDim2.new(0, 0, 0, 1)}, 0.5, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
-TW(botLine,       {Size = UDim2.new(0, 0, 0, 1)}, 0.5, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
-TW(logoGlow,      {ImageTransparency = 1}, 0.5)
-TW(barBg,         {BackgroundTransparency = 1}, 0.4)
-TW(barFill,       {BackgroundTransparency = 1}, 0.4)
-TW(barDot,        {BackgroundTransparency = 1}, 0.4)
-TW(statusLbl,     {TextTransparency = 1}, 0.4)
-TW(cursor,        {TextTransparency = 1}, 0.4)
-TW(pctLeft,       {TextTransparency = 1}, 0.4)
-TW(pctRight,      {TextTransparency = 1}, 0.4)
-TW(verLbl,        {TextTransparency = 1}, 0.4)
-TW(betaLbl,       {TextTransparency = 1}, 0.4)
-TW(volneLbl,      {TextTransparency = 1}, 0.4)
-TW(volneGlow,     {ImageTransparency = 1}, 0.4)
-TW(volneLineL,    {Size = UDim2.new(0, 0, 0, 1)}, 0.4, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
-TW(volneLineR,    {Size = UDim2.new(0, 0, 0, 1)}, 0.4, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
-for _, line in ipairs(scanHolder:GetChildren()) do
-    if line:IsA("Frame") then
-        TW(line, {BackgroundTransparency = 1}, 0.6)
-    end
-end
-TW(vignette,  {ImageTransparency = 1}, 0.7)
-TW(dim,       {BackgroundTransparency = 1}, 0.7)
-
-task.wait(0.9)
-sg:Destroy()
-end
-
 local MaterialLimits = {
     [Enum.Material.Asphalt] = 0.25,
     [Enum.Material.Basalt] = 0.25,
@@ -3276,6 +3095,169 @@ AntiAimThirdBox:AddSlider("ThirdPersonDist", {
     end
 })
 
+-- =========================================================================
+-- [ ANTI-AIM - GIRL MODEL ]
+-- =========================================================================
+
+do
+local AntiAimGirlBox = Tabs.AntiAim:AddLeftGroupbox("Girl Model", "users")
+
+AntiAimGirlBox:AddToggle("GirlModel", {
+    Text = "Girl Model",
+    Default = false,
+}):AddKeyPicker("GirlModelKey", {
+    Text = "Girl Model Key",
+    Default = "None",
+    Mode = "Toggle",
+})
+
+local GIRL_TIME = 0.5
+local GIRL_HEAD = { 6532260109, 6086548659 }
+local GIRL_TORSO = { 16988847156, 15884282892 }
+local GIRL_PROTECTED = {
+    HumanoidRootPart = true,
+    CameraPart = true,
+}
+
+local girlAccessories = {}
+
+local function girlWeld(part0, part1, c0, c1)
+    local weld = Instance.new("Weld")
+    weld.Part0 = part0
+    weld.Part1 = part1
+    weld.C0 = c0
+    weld.C1 = c1
+    weld.Parent = part0
+    return weld
+end
+
+local function girlFindAttachment(rootPart, name)
+    for _, desc in ipairs(rootPart:GetDescendants()) do
+        if desc:IsA("Attachment") and desc.Name == name then
+            return desc
+        end
+    end
+end
+
+local function girlAddAccessory(accessoryId, parentPart)
+    local ok, res = pcall(function()
+        local acc = game:GetObjects("rbxassetid://" .. tostring(accessoryId))[1]
+        local character = LP.Character
+        acc.Parent = game.Workspace
+        local handle = acc:FindFirstChild("Handle")
+        if handle then
+            handle.CanCollide = false
+            local att = handle:FindFirstChildOfClass("Attachment")
+            if att then
+                local pa = girlFindAttachment(parentPart, att.Name)
+                if pa then
+                    girlWeld(parentPart, handle, pa.CFrame, att.CFrame)
+                end
+            else
+                local parent = character:FindFirstChild(parentPart.Name)
+                if parent then
+                    local ap = acc.AttachmentPoint
+                    girlWeld(parent, handle, CFrame.new(0, 0.5, 0), ap.CFrame)
+                end
+            end
+        end
+        table.insert(girlAccessories, acc)
+        acc.Parent = character
+    end)
+    return ok, res
+end
+
+local function girlHide(char)
+    for _, p in ipairs(char:GetDescendants()) do
+        pcall(function()
+            if GIRL_PROTECTED[p.Name] then return end
+            if p:IsA("BasePart") then
+                if p.Name == "Handle" and p:FindFirstAncestorOfClass("Accessory") then return end
+                p.Transparency = 1
+                p.CanCollide = false
+            elseif p:IsA("Decal") or p:IsA("Texture") or p:IsA("SurfaceAppearance") then
+                p.Transparency = 1
+            end
+        end)
+    end
+end
+
+local function girlShow(char)
+    if not char then return end
+    for _, acc in ipairs(girlAccessories) do
+        pcall(function() acc:Destroy() end)
+    end
+    girlAccessories = {}
+    for _, p in ipairs(char:GetDescendants()) do
+        pcall(function()
+            if GIRL_PROTECTED[p.Name] then return end
+            if p:IsA("BasePart") then
+                p.Transparency = 0
+                p.CanCollide = true
+            elseif p:IsA("Decal") or p:IsA("Texture") or p:IsA("SurfaceAppearance") then
+                p.Transparency = 0
+            end
+        end)
+    end
+end
+
+local function girlApply(char)
+    if not char then return end
+    girlHide(char)
+    for _, id in ipairs(GIRL_HEAD) do
+        pcall(function() girlAddAccessory(id, char.Head) end)
+    end
+    local torso = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso")
+    for _, id in ipairs(GIRL_TORSO) do
+        pcall(function() girlAddAccessory(id, torso) end)
+    end
+    task.wait(0.1)
+    girlHide(char)
+end
+
+local function isGirlActive()
+    local base = (Toggles.GirlModel and Toggles.GirlModel.Value) or false
+    if Options.GirlModelKey and Options.GirlModelKey.Value ~= "None" and Options.GirlModelKey.Value ~= "Always" and Options.GirlModelKey.Value ~= "Toggle" then
+        return Options.GirlModelKey:GetState()
+    end
+    return base
+end
+
+local girlLastChar = nil
+local girlLastApply = 0
+
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        local active = isGirlActive()
+        local char = LP.Character
+        if not active then
+            girlShow(char)
+            girlLastChar = nil
+        elseif not char or not char.Parent then
+            girlLastChar = nil
+        elseif char ~= girlLastChar then
+            girlLastChar = char
+            task.wait(GIRL_TIME)
+            girlApply(char)
+            girlLastApply = tick()
+        else
+            local hasAny = false
+            for _, child in ipairs(char:GetChildren()) do
+                if child:IsA("Accessory") or child:FindFirstChild("Handle") then
+                    hasAny = true
+                    break
+                end
+            end
+            if not hasAny and (tick() - girlLastApply) > 2 then
+                task.wait(GIRL_TIME)
+                girlApply(char)
+                girlLastApply = tick()
+            end
+        end
+    end
+end)
+end
 -- =========================================================================
 -- [ WORLD TAB SETUP ]
 -- =========================================================================
