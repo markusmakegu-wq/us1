@@ -3,6 +3,16 @@
 -- [ BloxStrike Edition ]
 -- =========================================================================
 
+if _G.__PASTEHUB_FULLBUILD_INJECTED__ then
+    local oldUnload = _G.__PASTEHUB_FULLBUILD_UNLOAD__
+    if oldUnload then
+        pcall(oldUnload)
+    else
+        return
+    end
+end
+_G.__PASTEHUB_FULLBUILD_INJECTED__ = true
+
 local MaterialLimits = {
     [Enum.Material.Asphalt] = 0.25,
     [Enum.Material.Basalt] = 0.25,
@@ -207,7 +217,7 @@ local HttpService = game:GetService("HttpService")
 do
     local GSConfig = {
         menu_key = 0x2D,
-        MenuColor = { 76, 204, 112, 255 },
+        MenuColor = { 190, 190, 190, 255 },
     }
 
     local MenuCol = function()
@@ -257,6 +267,7 @@ do
 
     local unloaded = false
     local menuOpen = { v = true }
+    local prevCamType = nil
     local Connections = {}
     local function Track(conn)
         Connections[#Connections + 1] = conn
@@ -329,7 +340,7 @@ do
     AB.Parent = MainFrame
 
     local AL = Instance.new("Frame")
-    AL.Size = UDim2.new(0.5, -7, 0, 2)
+    AL.Size = UDim2.new(0.5, 0, 0, 2)
     AL.BorderSizePixel = 0
     AL.Parent = AB
     local ALG = Instance.new("UIGradient")
@@ -337,8 +348,8 @@ do
     ALG.Parent = AL
 
     local AR = Instance.new("Frame")
-    AR.Size = UDim2.new(0.5, -7, 0, 2)
-    AR.Position = UDim2.new(0.5, 7, 0, 0)
+    AR.Size = UDim2.new(0.5, 0, 0, 2)
+    AR.Position = UDim2.new(0.5, 0, 0, 0)
     AR.BorderSizePixel = 0
     AR.Parent = AB
     local ARG = Instance.new("UIGradient")
@@ -360,122 +371,19 @@ do
     DL.BorderSizePixel = 0
     DL.Parent = MainFrame
 
+    local GUN_ID = "rbxassetid://8547236654"
+
     local TabIconArt = {
-        { -- 0 RAGE: skull
-            "...######...",
-            "..########..",
-            ".##......##.",
-            ".#.######.#.",
-            "#.########.#",
-            "#.########.#",
-            "#..........#",
-            "#.#......#.#",
-            "##........##",
-            ".##..##..##.",
-            ".####..####.",
-            "............",
-        },
-        { -- 1 AA: spiral
-            "...#######..",
-            "..#........#",
-            ".#..........",
-            "#.........##",
-            "#..........#",
-            "#..........#",
-            "#........##.",
-            ".#......##..",
-            "..##..##....",
-            "...####.....",
-            "............",
-            "............",
-        },
-        { -- 2 LEGIT: target
-            "...######...",
-            "..#......#..",
-            "..#..##..#..",
-            ".#...##...#.",
-            ".#...##...#.",
-            ".#...##...#.",
-            ".#...##...#.",
-            ".#...##...#.",
-            ".#...##...#.",
-            "..#..##..#..",
-            "..#......#..",
-            "...######...",
-        },
-        { -- 3 VFX: eye
-            "............",
-            "...######...",
-            ".##......##.",
-            "#..........#",
-            "#..........#",
-            "#..........#",
-            ".##########.",
-            ".##......##.",
-            "..###..###..",
-            "...######...",
-            "............",
-            "............",
-        },
-        { -- 4 MISC: gear
-            "....####....",
-            "..########..",
-            ".####..####.",
-            "############",
-            "############",
-            ".######.....",
-            "..######....",
-            ".######.....",
-            "############",
-            "############",
-            ".####..####.",
-            "..########..",
-        },
-        { -- 5 SKINS: paintbrush
-            "....###.....",
-            "....###.....",
-            "....###.....",
-            "....###.....",
-            "....###.....",
-            "....###.....",
-            "...####.....",
-            "..######....",
-            ".########...",
-            ".#########..",
-            "..#######...",
-            "...#####....",
-        },
-        { -- 6 PLAYERS: person
-            "....####....",
-            "...######...",
-            "...######...",
-            "....####....",
-            "....####....",
-            "............",
-            ".####..####.",
-            "############",
-            ".##########.",
-            "..########..",
-            "............",
-            "............",
-        },
-        { -- 7 CFG: disk
-            "############",
-            "#..........#",
-            "#.######...#",
-            "#.######...#",
-            "#..........#",
-            "#.####.....#",
-            "#.####.....#",
-            "#..........#",
-            "#.#####....#",
-            "#..........#",
-            "#.#####....#",
-            "############",
-        },
+        "rbxassetid://8547236654", -- 0 RAGE
+        "custom",                   -- 1 ANTI-AIM (перечёркнутый пистолет)
+        "rbxassetid://8547249956",  -- 2 LEGIT
+        "rbxassetid://8547254518",  -- 3 VISUALS
+        "rbxassetid://8547256547",  -- 4 MISC
+        "rbxassetid://8547258459",  -- 5 SKINS
+        "floppy",                   -- 6 CONFIG
     }
 
-    local TabNames = { "rage", "aa", "legit", "vfx", "misc", "skins", "players", "cfg" }
+    local TabNames = { "rage", "aa", "legit", "vfx", "misc", "skins", "cfg" }
     local TabButtons = {}
     local TabFrames = {}
     local TabIconPx = {}
@@ -517,6 +425,127 @@ do
     end
 
     local function BuildTabIcon(parent, art, cell, color)
+        if art == "floppy" then
+            local holder = Instance.new("Frame")
+            holder.Name = "FloppyIcon"
+            holder.Size = UDim2.new(0, 48, 0, 48)
+            holder.Position = UDim2.new(0.5, 0, 0.5, 0)
+            holder.AnchorPoint = Vector2.new(0.5, 0.5)
+            holder.BackgroundTransparency = 1
+            holder.BorderSizePixel = 0
+            holder.ZIndex = 4
+            holder.Parent = parent
+
+            local body = Instance.new("Frame", holder)
+            body.Size = UDim2.new(0.72, 0, 0.72, 0)
+            body.Position = UDim2.new(0.5, 0, 0.5, 0)
+            body.AnchorPoint = Vector2.new(0.5, 0.5)
+            body.BackgroundTransparency = 1
+            body.BorderSizePixel = 0
+            body.ZIndex = 4
+            local bodyC = Instance.new("UICorner", body)
+            bodyC.CornerRadius = UDim.new(0, 2)
+            local bodyS = Instance.new("UIStroke", body)
+            bodyS.Color = color
+            bodyS.Thickness = 1.4
+            bodyS.Transparency = 0
+
+            local slider = Instance.new("Frame", body)
+            slider.Size = UDim2.new(0.45, 0, 0.30, 0)
+            slider.Position = UDim2.new(0.5, 0, 0.0, 0)
+            slider.AnchorPoint = Vector2.new(0.5, 0)
+            slider.BackgroundTransparency = 1
+            slider.BorderSizePixel = 0
+            slider.ZIndex = 5
+            local sliderS = Instance.new("UIStroke", slider)
+            sliderS.Color = color
+            sliderS.Thickness = 1.2
+            sliderS.Transparency = 0
+
+            local slot = Instance.new("Frame", slider)
+            slot.Size = UDim2.new(0.10, 0, 0.55, 0)
+            slot.Position = UDim2.new(0.75, 0, 0.22, 0)
+            slot.BackgroundColor3 = color
+            slot.BorderSizePixel = 0
+            slot.ZIndex = 6
+
+            local label = Instance.new("Frame", body)
+            label.Size = UDim2.new(0.70, 0, 0.50, 0)
+            label.Position = UDim2.new(0.5, 0, 0.50, 0)
+            label.AnchorPoint = Vector2.new(0.5, 0)
+            label.BackgroundTransparency = 1
+            label.BorderSizePixel = 0
+            label.ZIndex = 5
+            local labelS = Instance.new("UIStroke", label)
+            labelS.Color = color
+            labelS.Thickness = 1.2
+            labelS.Transparency = 0
+
+            return { bodyS, sliderS, slot, labelS }
+        end
+        if art == "custom" then
+            local holder = Instance.new("Frame")
+            holder.Name = "CrossedIcon"
+            holder.Size = UDim2.new(0, 52, 0, 52)
+            holder.Position = UDim2.new(0.5, 0, 0.5, 0)
+            holder.AnchorPoint = Vector2.new(0.5, 0.5)
+            holder.BackgroundTransparency = 1
+            holder.BorderSizePixel = 0
+            holder.ZIndex = 4
+            holder.Parent = parent
+
+            local circle = Instance.new("Frame", holder)
+            circle.Name = "Circle"
+            circle.Size = UDim2.new(0, 36, 0, 36)
+            circle.Position = UDim2.new(0.5, 0, 0.5, 0)
+            circle.AnchorPoint = Vector2.new(0.5, 0.5)
+            circle.BackgroundTransparency = 1
+            circle.BorderSizePixel = 0
+            circle.ZIndex = 4
+            local cc = Instance.new("UICorner", circle)
+            cc.CornerRadius = UDim.new(1, 0)
+            local cs = Instance.new("UIStroke", circle)
+            cs.Color = color
+            cs.Thickness = 1
+            cs.Transparency = 0.15
+
+            local gun = Instance.new("ImageLabel", holder)
+            gun.Name = "Gun"
+            gun.Size = UDim2.new(0, 39, 0, 39)
+            gun.Position = UDim2.new(0.5, 0, 0.5, 0)
+            gun.AnchorPoint = Vector2.new(0.5, 0.5)
+            gun.BackgroundTransparency = 1
+            gun.Image = GUN_ID
+            gun.ImageColor3 = color
+            gun.ScaleType = Enum.ScaleType.Fit
+            gun.ZIndex = 5
+
+            local slash = Instance.new("Frame", holder)
+            slash.Name = "Slash"
+            slash.Size = UDim2.new(0, 44, 0, 2.2)
+            slash.Position = UDim2.new(0.5, 0, 0.5, 0)
+            slash.AnchorPoint = Vector2.new(0.5, 0.5)
+            slash.BackgroundColor3 = color
+            slash.BorderSizePixel = 0
+            slash.Rotation = -45
+            slash.ZIndex = 6
+
+            return { circle, gun, slash }
+        end
+        if type(art) == "string" and art:find("rbxassetid://") then
+            local img = Instance.new("ImageLabel")
+            img.Size = UDim2.new(0, 52, 0, 52)
+            img.Position = UDim2.new(0.5, 0, 0.5, 0)
+            img.AnchorPoint = Vector2.new(0.5, 0.5)
+            img.BackgroundTransparency = 1
+            img.BorderSizePixel = 0
+            img.Image = art
+            img.ImageColor3 = color
+            img.ScaleType = Enum.ScaleType.Fit
+            img.ZIndex = 4
+            img.Parent = parent
+            return { img }
+        end
         if type(art) ~= "table" then
             local lbl = Instance.new("TextLabel")
             lbl.Size = UDim2.new(1, 0, 1, 0)
@@ -560,14 +589,14 @@ do
         return pxls
     end
 
-    local TAB_W, TAB_H, TAB_STEP = 60, 60, 62
+    local TAB_W, TAB_H, TAB_STEP = 72, 72, 74
     local IconCell = 3
     local IconIdle = Color3.fromRGB(90, 90, 90)
     local IconHover = Color3.fromRGB(160, 160, 160)
     local TabDisplay = {
         ["rage"] = "RAGE", ["aa"] = "ANTI-AIM", ["legit"] = "LEGIT",
         ["vfx"] = "VISUALS", ["misc"] = "MISC", ["skins"] = "SKINS",
-        ["players"] = "PLAYERS", ["cfg"] = "CONFIG",
+        ["cfg"] = "CONFIG",
     }
 
     for i = 1, #TabNames do
@@ -584,7 +613,7 @@ do
         btn.ZIndex = 3
         btn.Parent = MainFrame
 
-        local iconPx = BuildTabIcon(btn, TabIconArt[i], IconCell, (num == 0) and MenuCol() or IconIdle)
+        local iconPx = BuildTabIcon(btn, TabIconArt[i], IconCell, (num == 0) and Color3.new(1, 1, 1) or IconIdle)
 
         local fill = Instance.new("Frame")
         fill.Name = "BgFill"
@@ -607,9 +636,10 @@ do
 
         local frame = Instance.new("Frame")
         frame.Name = "Content_" .. TabNames[i]
-        frame.Size = UDim2.new(0, 570, 0, 508)
-        frame.Position = UDim2.new(0, 78, 0, 30)
-        frame.BackgroundTransparency = 1
+        frame.Size = UDim2.new(0, 558, 0, 508)
+        frame.Position = UDim2.new(0, 88, 0, 30)
+        frame.BackgroundTransparency = 0
+        frame.BackgroundColor3 = Color3.fromRGB(21, 21, 21)
         frame.Visible = (num == 0)
         frame.Parent = MainFrame
 
@@ -619,8 +649,21 @@ do
 
         local function SetTab(idx, active)
             local b2 = TabButtons[idx]
-            local col = active and MenuCol() or IconIdle
-            for _, p in ipairs(TabIconPx[idx]) do p.BackgroundColor3 = col end
+            local col = active and Color3.new(1, 1, 1) or IconIdle
+            local pxs = TabIconPx[idx]
+            if pxs then
+                for _, p in ipairs(pxs) do
+                    if p:IsA("ImageLabel") then
+                        p.ImageColor3 = col
+                    elseif p:IsA("TextLabel") then
+                        p.TextColor3 = col
+                    elseif p:IsA("UIStroke") then
+                        p.Color = col
+                    else
+                        p.BackgroundColor3 = col
+                    end
+                end
+            end
             local f2 = b2:FindFirstChild("BgFill")
             if f2 then f2.Visible = not active end
             local rbA = b2:FindFirstChild("RB")
@@ -629,7 +672,17 @@ do
 
         btn.MouseEnter:Connect(function()
             if CurTab.v ~= num then
-                for _, p in ipairs(iconPx) do p.BackgroundColor3 = IconHover end
+                for _, p in ipairs(iconPx) do
+                    if p:IsA("ImageLabel") then
+                        p.ImageColor3 = IconHover
+                    elseif p:IsA("TextLabel") then
+                        p.TextColor3 = IconHover
+                    elseif p:IsA("UIStroke") then
+                        p.Color = IconHover
+                    else
+                        p.BackgroundColor3 = IconHover
+                    end
+                end
             end
             local tval = TabDisplay[TabNames[i]]
             if tval then
@@ -1031,13 +1084,22 @@ do
 
         local modes = { "Always", "Toggle", "Hold" }
 
+        local function mouseKeyName(ut)
+            if ut == Enum.UserInputType.MouseButton1 then return "Mouse1" end
+            if ut == Enum.UserInputType.MouseButton2 then return "Mouse2" end
+            if ut == Enum.UserInputType.MouseButton3 then return "Mouse3" end
+            return nil
+        end
+
         local ctrl = {
             Value = opts.Default or "None",
             Mode = opts.Mode or "Toggle",
+            _label = opts.Text or id,
             _changed = {},
             _cb = opts.Callback,
             _toggled = false,
             _editing = false,
+            _lastMouse1Bind = 0,
         }
 
         local function refreshText()
@@ -1066,6 +1128,15 @@ do
             if self.Value == "Always" or mode == "Always" then return true end
             if self.Value == "None" or self.Value == "" then return false end
             if mode == "Toggle" then return self._toggled end
+            local mouseMap = {
+                Mouse1 = Enum.UserInputType.MouseButton1,
+                Mouse2 = Enum.UserInputType.MouseButton2,
+                Mouse3 = Enum.UserInputType.MouseButton3,
+            }
+            if mouseMap[self.Value] then
+                local ok, down = pcall(function() return UserInputService:IsMouseButtonPressed(mouseMap[self.Value]) end)
+                if ok then return down end
+            end
             local code = Enum.KeyCode[self.Value]
             if code then
                 local ok, down = pcall(function() return UserInputService:IsKeyDown(code) end)
@@ -1076,16 +1147,6 @@ do
 
         bb.MouseButton1Click:Connect(function()
             modePopup.Visible = false
-            ctrl._editing = true
-            KeyBindActive = ctrl
-            refreshText()
-            task.delay(6, function()
-                if KeyBindActive == ctrl then
-                    ctrl._editing = false
-                    KeyBindActive = nil
-                    refreshText()
-                end
-            end)
         end)
 
         bb.MouseButton2Click:Connect(function()
@@ -1129,9 +1190,22 @@ do
         end
 
         Track(UserInputService.InputBegan:Connect(function(i, gp)
-            if gp then return end
+            local function mouseOverBB()
+                local mx, my = i.Position.X, i.Position.Y
+                return mx >= bb.AbsolutePosition.X and mx <= bb.AbsolutePosition.X + bb.AbsoluteSize.X
+                    and my >= bb.AbsolutePosition.Y and my <= bb.AbsolutePosition.Y + bb.AbsoluteSize.Y
+            end
             if ctrl._editing then
-                if i.UserInputType == Enum.UserInputType.MouseButton1 then
+                local mn = mouseKeyName(i.UserInputType)
+                if mn then
+                    if i.UserInputType == Enum.UserInputType.MouseButton1 then
+                        ctrl._lastMouse1Bind = os.clock()
+                    end
+                    if ctrl.Value == mn then
+                        ctrl.Value = "None"
+                    else
+                        ctrl.Value = mn
+                    end
                     ctrl._editing = false
                     KeyBindActive = nil
                     refreshText()
@@ -1139,17 +1213,20 @@ do
                 end
                 local kc = i.KeyCode
                 if kc ~= Enum.KeyCode.Unknown then
+                    local kname = tostring(kc):gsub("^Enum%.KeyCode%.", "")
+                    local isMenuKey = (kc == Enum.KeyCode.RightShift or kc.Value == GSConfig.menu_key)
                     if kc == Enum.KeyCode.Escape then
                         ctrl.Value = "None"
-                    else
-                        ctrl.Value = tostring(kc):gsub("^Enum%.KeyCode%.", "")
+                    elseif not isMenuKey then
+                        ctrl.Value = kname
                     end
                     ctrl._editing = false
                     KeyBindActive = nil
                     refreshText()
-                    FireCtrl(ctrl, ctrl.Value)
+                    if not isMenuKey then return end
+                else
+                    return
                 end
-                return
             end
             if modePopup.Visible and i.UserInputType == Enum.UserInputType.MouseButton1 then
                 local mx, my = i.Position.X, i.Position.Y
@@ -1158,6 +1235,30 @@ do
                 local inB = mx >= bb.AbsolutePosition.X and mx <= bb.AbsolutePosition.X + bb.AbsoluteSize.X
                     and my >= bb.AbsolutePosition.Y and my <= bb.AbsolutePosition.Y + bb.AbsoluteSize.Y
                 if not inM and not inB then modePopup.Visible = false end
+            end
+            local mn = mouseKeyName(i.UserInputType)
+            if mn then
+                if mouseOverBB() then
+                    ctrl._editing = true
+                    KeyBindActive = ctrl
+                    refreshText()
+                    task.delay(6, function()
+                        if KeyBindActive == ctrl then
+                            ctrl._editing = false
+                            KeyBindActive = nil
+                            refreshText()
+                        end
+                    end)
+                    return
+                end
+                if ctrl.Value ~= mn then return end
+                if ctrl.Mode == "Toggle" then
+                    ctrl._toggled = not ctrl._toggled
+                    FireCtrl(ctrl, ctrl._toggled)
+                elseif ctrl.Mode == "Hold" then
+                    FireCtrl(ctrl, true)
+                end
+                return
             end
             if i.KeyCode == Enum.KeyCode.Unknown then return end
             local keyName = tostring(i.KeyCode):gsub("^Enum%.KeyCode%.", "")
@@ -1171,6 +1272,14 @@ do
         end))
 
         Track(UserInputService.InputEnded:Connect(function(i)
+            local mn = mouseKeyName(i.UserInputType)
+            if mn then
+                if ctrl.Mode ~= "Hold" then return end
+                if ctrl.Value == mn then
+                    FireCtrl(ctrl, false)
+                end
+                return
+            end
             if i.KeyCode == Enum.KeyCode.Unknown then return end
             if ctrl.Mode ~= "Hold" then return end
             local keyName = tostring(i.KeyCode):gsub("^Enum%.KeyCode%.", "")
@@ -1241,6 +1350,11 @@ do
         inp.FocusLost:Connect(function()
             ctrl.Value = inp.Text
             FireCtrl(ctrl, ctrl.Value)
+        end)
+        inp:GetPropertyChangedSignal("Text"):Connect(function()
+            if inp:IsFocused() then
+                ctrl.Value = inp.Text
+            end
         end)
         return ctrl, row
     end
@@ -1920,7 +2034,7 @@ do
             box.Name = name
             box.Size = UDim2.new(1, -4, 0, 0)
             box.AutomaticSize = Enum.AutomaticSize.Y
-            box.BackgroundColor3 = Color3.fromRGB(23, 23, 23)
+            box.BackgroundColor3 = Color3.fromRGB(31, 31, 31)
             box.BorderSizePixel = 0
             box.LayoutOrder = cols.leftN
             box.ZIndex = 2
@@ -1971,7 +2085,7 @@ do
             box.Name = name
             box.Size = UDim2.new(1, -4, 0, 0)
             box.AutomaticSize = Enum.AutomaticSize.Y
-            box.BackgroundColor3 = Color3.fromRGB(23, 23, 23)
+            box.BackgroundColor3 = Color3.fromRGB(31, 31, 31)
             box.BorderSizePixel = 0
             box.LayoutOrder = cols.rightN
             box.ZIndex = 2
@@ -2025,8 +2139,7 @@ do
     Tabs.Visuals = MakeTabObj(4)
     Tabs.Misc = MakeTabObj(5)
     Tabs.SkinChanger = MakeTabObj(6)
-    Tabs.Players = MakeTabObj(7)
-    Tabs.Settings = MakeTabObj(8)
+    Tabs.Settings = MakeTabObj(7)
     Tabs.Weapons = Tabs.Misc
     Tabs.World = Tabs.Misc
 
@@ -2034,8 +2147,31 @@ do
         return MakeTabObj(1)
     end
 
+    local debounceToggle = 0
     function Library:Toggle()
+        local now = os.clock()
+        if now - debounceToggle < 0.1 then return end
+        debounceToggle = now
+        KeyBindActive = nil
         menuOpen.v = not menuOpen.v
+        pcall(function()
+            UserInputService.MouseBehavior = menuOpen.v and Enum.MouseBehavior.Default or Enum.MouseBehavior.LockCenter
+            local cam = workspace.CurrentCamera
+            if cam then
+                if menuOpen.v then
+                    local prev = cam.CameraType
+                    if prev ~= Enum.CameraType.Scriptable then
+                        prevCamType = prev
+                        cam.CameraType = Enum.CameraType.Scriptable
+                    end
+                else
+                    if prevCamType ~= nil then
+                        cam.CameraType = prevCamType
+                        prevCamType = nil
+                    end
+                end
+            end
+        end)
         if not menuOpen.v then
             pcall(CloseAllDDs)
             pcall(CloseAllPickers)
@@ -2045,7 +2181,18 @@ do
     function Library:Unload()
         if unloaded then return end
         unloaded = true
+        _G.__PASTEHUB_FULLBUILD_INJECTED__ = nil
+        _G.__PASTEHUB_FULLBUILD_UNLOAD__ = nil
         menuOpen.v = false
+        pcall(function()
+            UserInputService.MouseIconEnabled = false
+            UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+            local cam = workspace.CurrentCamera
+            if cam and prevCamType ~= nil then
+                cam.CameraType = prevCamType
+                prevCamType = nil
+            end
+        end)
         pcall(CloseAllDDs)
         pcall(CloseAllPickers)
         for _, conn in ipairs(Connections) do
@@ -2055,9 +2202,15 @@ do
     end
 
     local animAlpha = { v = 1 }
+    local MenuCursor = nil
 
     Track(UserInputService.InputBegan:Connect(function(input, gp)
         if gp then return end
+        if input.KeyCode == Enum.KeyCode.Escape and menuOpen.v then
+            KeyBindActive = nil
+            Library:Toggle()
+            return
+        end
         if KeyBindActive then return end
         if input.KeyCode.Value == GSConfig.menu_key and GSConfig.menu_key ~= 0 then
             Library:Toggle()
@@ -2066,6 +2219,12 @@ do
 
     Track(RunService.RenderStepped:Connect(function(dt)
         if unloaded or not ScreenGui.Parent then return end
+        if menuOpen.v then
+            pcall(function()
+                UserInputService.MouseIconEnabled = true
+                UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+            end)
+        end
         local target = menuOpen.v and 1 or 0
         animAlpha.v = animAlpha.v + (target - animAlpha.v) * math.clamp(dt * 10, 0, 1)
         if not menuOpen.v and animAlpha.v < 0.01 then
@@ -2074,6 +2233,21 @@ do
         end
         MainFrame.Visible = true
         MainFrame.GroupTransparency = 1 - animAlpha.v
+    end))
+
+    Track(RunService.Heartbeat:Connect(function()
+        if unloaded or not ScreenGui.Parent then return end
+        if menuOpen.v then
+            UserInputService.MouseIconEnabled = true
+            UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+            pcall(function()
+                local mp = UserInputService:GetMouseLocation()
+                local inset = Vector2.zero
+                pcall(function() inset = game:GetService("GuiService"):GetGuiInset() end)
+                MenuCursor.Position = UDim2.new(0, mp.X - inset.X, 0, mp.Y - inset.Y)
+            end)
+        end
+        MenuCursor.Visible = menuOpen.v
     end))
 
     Track(RunService.RenderStepped:Connect(function()
@@ -2087,9 +2261,19 @@ do
             local pxs = TabIconPx[i]
             if pxs then
                 local active = (CurTab.v == i - 1)
-                local col = active and mc or ((TabButtons[i]:IsMouseOver()) and IconHover or IconIdle)
+                local hover = false
+                pcall(function() hover = TabButtons[i].isMouseOver or TabButtons[i]:IsMouseOver() end)
+                local col = active and Color3.new(1, 1, 1) or (hover and IconHover or IconIdle)
                 for _, p in ipairs(pxs) do
-                    p.BackgroundColor3 = col
+                    if p:IsA("ImageLabel") then
+                        p.ImageColor3 = col
+                    elseif p:IsA("TextLabel") then
+                        p.TextColor3 = col
+                    elseif p:IsA("UIStroke") then
+                        p.Color = col
+                    else
+                        p.BackgroundColor3 = col
+                    end
                 end
             end
         end
@@ -2098,6 +2282,220 @@ do
     if not ScreenGui.Parent then
         pcall(AttachGui)
     end
+
+    -- =========================================================================
+    -- [ KEYBIND PANEL + WATERMARK ]
+    -- =========================================================================
+
+    local KeybindPanel = Instance.new("Frame")
+    KeybindPanel.Name = "KeybindPanel"
+    KeybindPanel.Size = UDim2.new(0, 190, 0, 40)
+    KeybindPanel.Position = UDim2.new(0, 8, 0.5, 0)
+    KeybindPanel.AnchorPoint = Vector2.new(0, 0.5)
+    KeybindPanel.BackgroundColor3 = Color3.fromRGB(14, 14, 14)
+    KeybindPanel.BackgroundTransparency = 0.1
+    KeybindPanel.BorderSizePixel = 0
+    KeybindPanel.ZIndex = 5
+    KeybindPanel.Parent = ScreenGui
+    local kpStroke = Instance.new("UIStroke")
+    kpStroke.Color = Color3.fromRGB(60, 60, 60)
+    kpStroke.Thickness = 1
+    kpStroke.Parent = KeybindPanel
+    local kpCorner = Instance.new("UICorner")
+    kpCorner.CornerRadius = UDim.new(0, 4)
+    kpCorner.Parent = KeybindPanel
+
+    local kpAccent = Instance.new("Frame")
+    kpAccent.Size = UDim2.new(1, 0, 0, 2)
+    kpAccent.BackgroundColor3 = MenuCol()
+    kpAccent.BackgroundTransparency = 0.15
+    kpAccent.BorderSizePixel = 0
+    kpAccent.ZIndex = 6
+    kpAccent.Parent = KeybindPanel
+
+    local kpTitle = Instance.new("TextLabel")
+    kpTitle.Size = UDim2.new(1, -12, 0, 18)
+    kpTitle.Position = UDim2.new(0, 6, 0, 5)
+    kpTitle.BackgroundTransparency = 1
+    kpTitle.Font = Enum.Font.Code
+    kpTitle.TextSize = 13
+    kpTitle.Text = "KEYBINDS"
+    kpTitle.TextColor3 = MenuCol()
+    kpTitle.TextXAlignment = Enum.TextXAlignment.Left
+    kpTitle.ZIndex = 6
+    kpTitle.Parent = KeybindPanel
+
+    local kpList = Instance.new("Frame")
+    kpList.Size = UDim2.new(1, -14, 0, 0)
+    kpList.AutomaticSize = Enum.AutomaticSize.Y
+    kpList.Position = UDim2.new(0, 7, 0, 27)
+    kpList.BackgroundTransparency = 1
+    kpList.ZIndex = 6
+    kpList.Parent = KeybindPanel
+    local kpLayout = Instance.new("UIListLayout")
+    kpLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    kpLayout.Padding = UDim.new(0, 3)
+    kpLayout.Parent = kpList
+
+    local Watermark = Instance.new("Frame")
+    Watermark.Name = "Watermark"
+    Watermark.Size = UDim2.new(0, 0, 0, 22)
+    Watermark.Position = UDim2.new(1, -8, 0, 8)
+    Watermark.AnchorPoint = Vector2.new(1, 0)
+    Watermark.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
+    Watermark.BackgroundTransparency = 0.12
+    Watermark.BorderSizePixel = 0
+    Watermark.AutomaticSize = Enum.AutomaticSize.X
+    Watermark.ZIndex = 5
+    Watermark.Parent = ScreenGui
+    local wmStroke = Instance.new("UIStroke")
+    wmStroke.Color = Color3.fromRGB(40, 40, 40)
+    wmStroke.Thickness = 1
+    wmStroke.Parent = Watermark
+    local wmLabel = Instance.new("TextLabel")
+    wmLabel.Size = UDim2.new(0, 0, 1, 0)
+    wmLabel.AutomaticSize = Enum.AutomaticSize.X
+    wmLabel.Position = UDim2.new(0, 8, 0, 0)
+    wmLabel.BackgroundTransparency = 1
+    wmLabel.Font = Enum.Font.Code
+    wmLabel.TextSize = 12
+    wmLabel.TextXAlignment = Enum.TextXAlignment.Left
+    wmLabel.TextColor3 = Color3.fromRGB(210, 210, 210)
+    wmLabel.ZIndex = 6
+    wmLabel.Parent = Watermark
+    local wmPad = Instance.new("UIPadding")
+    wmPad.PaddingRight = UDim.new(0, 8)
+    wmPad.Parent = Watermark
+
+    -- собственный курсор (игра прячет системный)
+    MenuCursor = Instance.new("Frame")
+    MenuCursor.Name = "MenuCursor"
+    MenuCursor.Size = UDim2.fromOffset(16, 16)
+    MenuCursor.BackgroundTransparency = 1
+    MenuCursor.ZIndex = 50
+    MenuCursor.Active = false
+    MenuCursor.Visible = false
+    MenuCursor.Parent = ScreenGui
+    local function mkCur(px, py, sx, sy, color, z)
+        local f = Instance.new("Frame")
+        f.Size = UDim2.fromOffset(sx, sy)
+        f.Position = UDim2.fromOffset(px, py)
+        f.BackgroundColor3 = color
+        f.BackgroundTransparency = 0
+        f.BorderSizePixel = 0
+        f.ZIndex = z
+        f.Parent = MenuCursor
+        return f
+    end
+    mkCur(0, 0, 3, 15, Color3.new(0, 0, 0), 49)
+    mkCur(0, 12, 11, 3, Color3.new(0, 0, 0), 49)
+    mkCur(1, 1, 1, 13, Color3.new(1, 1, 1), 50)
+    mkCur(1, 12, 8, 1, Color3.new(1, 1, 1), 50)
+
+    -- карта: ctrl -> { Row, KeyLbl, NameLbl, State }
+    local kpRowMap = {}
+    local wmLt = 0
+    local wmAcc = 0
+
+    Track(RunService.RenderStepped:Connect(function()
+        if unloaded or not ScreenGui.Parent then return end
+
+        -- собираем активные
+        local shown = {}
+        for _, pc in ipairs(KeyPickers) do
+            if pc._label ~= "MenuKeybind" then
+                if pc.Value and pc.Value ~= "None" and pc.Value ~= "Always" and pc.Value ~= "Toggle" then
+                    shown[#shown + 1] = pc
+                end
+            end
+        end
+
+        -- определяем какие ещё нужны
+        local needSet = {}
+        for _, pc in ipairs(shown) do
+            needSet[pc] = true
+        end
+
+        -- удаляем лишние
+        for pc, entry in pairs(kpRowMap) do
+            if not needSet[pc] then
+                pcall(function() entry.Row:Destroy() end)
+                kpRowMap[pc] = nil
+            end
+        end
+
+        -- создаём недостающие
+        for i, pc in ipairs(shown) do
+            local entry = kpRowMap[pc]
+            if not entry then
+                local row = Instance.new("Frame")
+                row.Size = UDim2.new(0, 168, 0, 18)
+                row.BackgroundTransparency = 1
+                row.LayoutOrder = i
+                row.ZIndex = 6
+                row.Parent = kpList
+
+                local keyLbl = Instance.new("TextLabel", row)
+                keyLbl.Size = UDim2.new(0, 52, 1, 0)
+                keyLbl.BackgroundTransparency = 1
+                keyLbl.Font = Enum.Font.Code
+                keyLbl.TextSize = 13
+                keyLbl.Text = "[" .. tostring(pc.Value) .. "]"
+                keyLbl.TextColor3 = MenuCol()
+                keyLbl.TextXAlignment = Enum.TextXAlignment.Left
+                keyLbl.ZIndex = 7
+
+                local nameLbl = Instance.new("TextLabel", row)
+                nameLbl.Size = UDim2.new(0, 86, 1, 0)
+                nameLbl.Position = UDim2.new(0, 54, 0, 0)
+                nameLbl.BackgroundTransparency = 1
+                nameLbl.Font = Enum.Font.Code
+                nameLbl.TextSize = 13
+                nameLbl.Text = tostring(pc._label or "Key")
+                nameLbl.TextColor3 = Color3.fromRGB(200, 200, 200)
+                nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+                nameLbl.TextTruncate = Enum.TextTruncate.AtEnd
+                nameLbl.ZIndex = 7
+
+                local stateLbl = Instance.new("TextLabel", row)
+                stateLbl.Size = UDim2.new(0, 28, 1, 0)
+                stateLbl.Position = UDim2.new(0, 140, 0, 0)
+                stateLbl.BackgroundTransparency = 1
+                stateLbl.Font = Enum.Font.Code
+                stateLbl.TextSize = 13
+                stateLbl.Text = "OFF"
+                stateLbl.TextColor3 = Color3.fromRGB(90, 90, 90)
+                stateLbl.TextXAlignment = Enum.TextXAlignment.Right
+                stateLbl.ZIndex = 7
+
+                entry = { Row = row, KeyLbl = keyLbl, NameLbl = nameLbl, State = stateLbl }
+                kpRowMap[pc] = entry
+            end
+
+            entry.Row.LayoutOrder = i
+            entry.KeyLbl.Text = "[" .. tostring(pc.Value) .. "]"
+            entry.NameLbl.Text = tostring(pc._label or "Key")
+
+            local st, ok = pcall(function() return pc:GetState() end)
+            local on = ok and st
+            entry.State.Text = on and "ON" or "OFF"
+            entry.State.TextColor3 = on and MenuCol() or Color3.fromRGB(90, 90, 90)
+        end
+
+        -- размер панели
+        KeybindPanel.Size = UDim2.new(0, 190, 0, 30 + #shown * 21)
+        KeybindPanel.Visible = #shown > 0
+
+        -- watermark
+        local now = os.clock()
+        local dt = wmLt ~= 0 and (now - wmLt) or 0
+        wmLt = now
+        if dt > 0 then wmAcc = (wmAcc * 0.85) + ((1 / dt) * 0.15) end
+        local fps = math.floor(wmAcc)
+        wmLabel.Text = tostring(fps) .. " FPS   |   " ..
+            tostring(LP and LP.Name or "player") ..
+            "   |   VLONE.XYZ-PRIABTE GAMESENSE"
+    end))
 
     SettingsGroup = Tabs.Settings:AddLeftGroupbox("Interface Settings")
 
@@ -2125,11 +2523,17 @@ end
 -- [ MISC TAB - MOVEMENT ]
 -- =========================================================================
 
-local MiscBox = Tabs.AntiAim:AddLeftGroupbox("Movement", "activity")
+local MiscBox = Tabs.Misc:AddLeftGroupbox("Movement", "activity")
 
 MiscBox:AddToggle("AutoBhop", { Text = "Auto Bhop", Default = false })
 MiscBox:AddSlider("BhopSpeed", { Text = "Bhop Speed", Default = 18, Min = 5, Max = 30, Rounding = 1, Suffix = "spd" })
-MiscBox:AddToggle("NoFallDamage", { Text = "No Fall Damage", Default = false })
+
+local LegitBox = Tabs.Legit:AddLeftGroupbox("No Fall", "shield")
+LegitBox:AddToggle("NoFallDamage", { Text = "No Fall Damage", Default = false }):AddKeyPicker("NoFallKey", {
+    Text = "No Fall Key",
+    Default = "F",
+    Mode = "Toggle",
+})
 
 RunService.Heartbeat:Connect(function()
     pcall(function()
@@ -2162,7 +2566,14 @@ end)
 
 RunService.Heartbeat:Connect(function()
     pcall(function()
-        if Toggles.NoFallDamage and Toggles.NoFallDamage.Value then
+        local nofall = (Toggles.NoFallDamage and Toggles.NoFallDamage.Value)
+        if Options.NoFallKey then
+            local kState = Options.NoFallKey:GetState()
+            if Options.NoFallKey.Value ~= "None" and Options.NoFallKey.Value ~= "Always" and Options.NoFallKey.Value ~= "Toggle" then
+                nofall = kState
+            end
+        end
+        if nofall then
             local character = LP.Character
             if character then
                 local humanoid = character:FindFirstChildOfClass("Humanoid")
@@ -2176,6 +2587,103 @@ RunService.Heartbeat:Connect(function()
         end
     end)
 end)
+
+-- =========================================================================
+-- [ ANTI-AIM TAB - SPINBOT + THIRD PERSON ]
+-- =========================================================================
+
+local AntiAimBox = Tabs.AntiAim:AddLeftGroupbox("Spinbot", "activity")
+
+AntiAimBox:AddToggle("SpinBot", {
+    Text = "Spinbot",
+    Default = false,
+}):AddKeyPicker("SpinBotKey", {
+    Text = "Spinbot Key",
+    Default = "None",
+    Mode = "Toggle",
+})
+
+AntiAimBox:AddSlider("SpinBotSpeed", {
+    Text = "Spinbot Speed",
+    Default = 1000000,
+    Min = 30,
+    Max = 1000000,
+    Rounding = 0,
+    Suffix = "deg/s",
+})
+
+local spinHrp = nil
+local function UpdateSpinHRP()
+    local c = LP.Character
+    spinHrp = c and c:FindFirstChild("HumanoidRootPart")
+end
+UpdateSpinHRP()
+LP.CharacterAdded:Connect(UpdateSpinHRP)
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        UpdateSpinHRP()
+    end
+end)
+
+RunService.RenderStepped:Connect(function(dt)
+    local spinActive = (Toggles.SpinBot and Toggles.SpinBot.Value) or false
+    if Options.SpinBotKey and Options.SpinBotKey.Value ~= "None" and Options.SpinBotKey.Value ~= "Always" and Options.SpinBotKey.Value ~= "Toggle" then
+        spinActive = Options.SpinBotKey:GetState()
+    end
+    if spinActive then
+        local rp = spinHrp
+        if rp and rp.Parent then
+            local spd = Options.SpinBotSpeed and Options.SpinBotSpeed.Value or 1000000
+            rp.CFrame = rp.CFrame * CFrame.Angles(0, math.rad(spd) * dt, 0)
+        end
+    end
+end)
+
+local AntiAimThirdBox = Tabs.AntiAim:AddRightGroupbox("Third Person", "video")
+
+local function isThirdPersonActive()
+    local base = (Toggles.ThirdPerson and Toggles.ThirdPerson.Value) or false
+    if Options.ThirdPersonKey and Options.ThirdPersonKey.Value ~= "None" and Options.ThirdPersonKey.Value ~= "Always" and Options.ThirdPersonKey.Value ~= "Toggle" then
+        return Options.ThirdPersonKey:GetState()
+    end
+    return base
+end
+
+AntiAimThirdBox:AddToggle("ThirdPerson", {
+    Text = "Third Person Camera",
+    Default = false,
+    Callback = function(Value)
+        if Value then
+            LP.CameraMode = Enum.CameraMode.Classic
+            LP.CameraMaxZoomDistance = Options.ThirdPersonDist and Options.ThirdPersonDist.Value or 10
+            LP.CameraMinZoomDistance = Options.ThirdPersonDist and Options.ThirdPersonDist.Value or 10
+        else
+            LP.CameraMode = Enum.CameraMode.LockFirstPerson
+            LP.CameraMaxZoomDistance = 0.5
+            LP.CameraMinZoomDistance = 0.5
+        end
+    end
+}):AddKeyPicker("ThirdPersonKey", {
+    Text = "Third Person Key",
+    Default = "None",
+    Mode = "Toggle",
+})
+
+AntiAimThirdBox:AddSlider("ThirdPersonDist", {
+    Text = "Third Person Distance",
+    Default = 10,
+    Min = 5,
+    Max = 50,
+    Rounding = 1,
+    Suffix = "studs",
+    Callback = function(Value)
+        if isThirdPersonActive() then
+            LP.CameraMaxZoomDistance = Value
+            LP.CameraMinZoomDistance = Value
+        end
+    end
+})
 
 -- =========================================================================
 -- [ WORLD TAB SETUP ]
@@ -2615,37 +3123,6 @@ CustomCameraBox:AddToggle("CustomFovToggle", {
 
 CustomCameraBox:AddSlider("FovAmount", { Text = "FOV Amount", Default = 90, Min = 70, Max = 120, Rounding = 0, Suffix = "deg" })
 
-CustomCameraBox:AddToggle("ThirdPerson", {
-    Text = "Third Person Camera",
-    Default = false,
-    Callback = function(Value)
-        if Value then
-            LP.CameraMode = Enum.CameraMode.Classic
-            LP.CameraMaxZoomDistance = Options.ThirdPersonDist and Options.ThirdPersonDist.Value or 10
-            LP.CameraMinZoomDistance = Options.ThirdPersonDist and Options.ThirdPersonDist.Value or 10
-        else
-            LP.CameraMode = Enum.CameraMode.LockFirstPerson
-            LP.CameraMaxZoomDistance = 0.5
-            LP.CameraMinZoomDistance = 0.5
-        end
-    end
-})
-
-CustomCameraBox:AddSlider("ThirdPersonDist", {
-    Text = "Third Person Distance",
-    Default = 10,
-    Min = 5,
-    Max = 50,
-    Rounding = 1,
-    Suffix = "studs",
-    Callback = function(Value)
-        if Toggles.ThirdPerson and Toggles.ThirdPerson.Value then
-            LP.CameraMaxZoomDistance = Value
-            LP.CameraMinZoomDistance = Value
-        end
-    end
-})
-
 -- =========================================================================
 -- [ CUSTOM SCOPE ]
 -- =========================================================================
@@ -2887,7 +3364,7 @@ task.spawn(function()
         local oldNewIndex = mt.__newindex
         setreadonly(mt, false)
         mt.__newindex = newcclosure(function(self, key, value)
-            if self == LP and Toggles.ThirdPerson and Toggles.ThirdPerson.Value then
+            if self == LP and isThirdPersonActive() then
                 if key == "CameraMode" then
                     return oldNewIndex(self, key, Enum.CameraMode.Classic)
                 elseif key == "CameraMaxZoomDistance" then
@@ -2915,7 +3392,7 @@ RunService.RenderStepped:Connect(function()
                 if cam then cam.FieldOfView = Options.FovAmount.Value or 90 end
             end
         end
-        if Toggles.ThirdPerson and Toggles.ThirdPerson.Value then
+        if isThirdPersonActive() then
             local clampedDist = math.clamp(Options.ThirdPersonDist and Options.ThirdPersonDist.Value or 10, 5, 50)
             LP.CameraMode = Enum.CameraMode.Classic
             LP.CameraMaxZoomDistance = clampedDist
@@ -3234,8 +3711,42 @@ end
 
 local SD = {SkinsRoot = nil, SkinSelections = {}, GloveSelections = {}, GloveFolders = {}}
 
+local function FindSkinsRoot()
+    local ok, root = pcall(function()
+        local assets = RS:FindFirstChild("Assets")
+        if assets then return assets:FindFirstChild("Skins") end
+        return nil
+    end)
+    if not ok then root = nil end
+    if not root then
+        local found
+        pcall(function()
+            for _, inst in ipairs(RS:GetDescendants()) do
+                if inst.Name == "Skins" and inst:IsA("Folder") then
+                    found = inst
+                    break
+                end
+            end
+        end)
+        root = found
+    end
+    if not root and RS.Assets then
+        local found
+        pcall(function()
+            for _, inst in ipairs(RS.Assets:GetDescendants()) do
+                if inst.Name == "Skins" and inst:IsA("Folder") then
+                    found = inst
+                    break
+                end
+            end
+        end)
+        root = found
+    end
+    return root
+end
+
 pcall(function()
-    SD.SkinsRoot = RS:FindFirstChild("Assets") and RS.Assets:FindFirstChild("Skins")
+    SD.SkinsRoot = FindSkinsRoot()
 end)
 
 if SD.SkinsRoot then
@@ -3368,6 +3879,28 @@ for w, s in pairs(SD.SkinSelections) do
         })
     end
 end
+
+task.spawn(function()
+    while task.wait(2) do
+        pcall(function()
+            if SD.SkinSelections then
+                local count = 0
+                for _ in pairs(SD.SkinSelections) do count = count + 1 end
+                if count == 0 then
+                    SD.SkinsRoot = FindSkinsRoot()
+                    if SD.SkinsRoot then
+                        for _, wf in ipairs(SD.SkinsRoot:GetChildren()) do
+                            local skins = {}
+                            for _, sf in ipairs(wf:GetChildren()) do skins[#skins + 1] = sf.Name end
+                            table.sort(skins)
+                            SD.SkinSelections[wf.Name] = skins
+                        end
+                    end
+                end
+            end
+        end)
+    end
+end)
 
 local function InitKnifeChanger()
     pcall(function()
@@ -6479,6 +7012,10 @@ task.spawn(function()
         ["ReloadStart"]  = true,
         ["ReloadAction"] = true,
         ["ReloadEnd"]    = true,
+        ["Reloading"]    = true,
+        ["ReloadShot"]   = true,
+        ["Reloading_Stand"] = true,
+        ["Reload_Stand"]    = true,
     }
 
     local RELOAD_SPEED = 199
@@ -6519,7 +7056,7 @@ task.spawn(function()
     local lastReloadWeapon = nil
 
     task.spawn(function()
-        while task.wait(0.1) do
+        while task.wait(0.03) do
             pcall(function()
                 local weapon = getWeaponObjectSafe()
                 if not weapon then return end
@@ -6536,7 +7073,6 @@ task.spawn(function()
 
                 if not (Toggles.InstantReload and Toggles.InstantReload.Value) then return end
 
-                if weapon.IsReloading then
                     pcall(function()
                         if weapon.Viewmodel and weapon.Viewmodel.Animation and weapon.Viewmodel.Animation.Animations then
                             for name, track in pairs(weapon.Viewmodel.Animation.Animations) do
@@ -6553,7 +7089,6 @@ task.spawn(function()
                             end
                         end
                     end)
-                end
             end)
         end
     end)
@@ -6595,10 +7130,16 @@ end
 
 local function smEnsureFolder()
     if smFolder == "" then return end
-    pcall(function() if makefolder then makefolder(smFolder) end end)
-    if smSubFolder ~= "" then
-        pcall(function() if makefolder then makefolder(smFolder .. "/" .. smSubFolder) end end)
-    end
+    if not makefolder then return end
+    pcall(function()
+        local base = smFolder
+        if smSubFolder ~= "" then base = base .. "/" .. smSubFolder end
+        local cur = ""
+        for segment in base:gmatch("[^/\\]+") do
+            cur = cur == "" and segment or (cur .. "/" .. segment)
+            pcall(function() makefolder(cur) end)
+        end
+    end)
 end
 
 local function serializeValue(v)
@@ -6747,7 +7288,7 @@ function SaveManager:SetSubFolder(sub)
 end
 
 function SaveManager:Save(name)
-    name = tostring(name or "default"):gsub("[^%w%s%-_]", ""):gsub("%s+", "_")
+    name = tostring(name or "default"):gsub("[%c\\/:*?\"<>|]", ""):gsub("%s+", "_"):gsub("^_+|_+$", "")
     if name == "" then return false end
     smEnsureFolder()
     local state = collectState()
@@ -6828,6 +7369,7 @@ function SaveManager:BuildConfigSection(tab)
             local configs = SaveManager:GetConfigs()
             if dd and dd.SetValues and #configs > 0 then
                 dd:SetValues(configs)
+                dd:SetValue(name)
             end
         end
     end)
@@ -6888,6 +7430,10 @@ SaveManager:BuildConfigSection(Tabs.Settings)
 ThemeManager:ApplyToTab(Tabs.Settings)
 
 SaveManager:LoadAutoloadConfig()
+
+_G.__PASTEHUB_FULLBUILD_UNLOAD__ = function()
+    pcall(function() Library:Unload() end)
+end
 
 -- =========================================================================
 -- [ END OF PASTEHUB | FULL BUILD ]
