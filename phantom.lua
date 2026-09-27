@@ -1644,6 +1644,8 @@ do
                     return
                 end
             end
+            -- Если другой picker в режиме редактирования — не обрабатывать нажатия
+            if KeyBindActive and KeyBindActive ~= ctrl then return end
             if modePopup.Visible and i.UserInputType == Enum.UserInputType.MouseButton1 then
                 local mx, my = i.Position.X, i.Position.Y
                 local inM = mx >= modePopup.AbsolutePosition.X and mx <= modePopup.AbsolutePosition.X + modePopup.AbsoluteSize.X
@@ -1652,6 +1654,8 @@ do
                     and my >= bb.AbsolutePosition.Y and my <= bb.AbsolutePosition.Y + bb.AbsoluteSize.Y
                 if not inM and not inB then modePopup.Visible = false end
             end
+            -- Не обрабатывать trigger пока любой picker в режиме редактирования
+            if KeyBindActive then return end
             local mn = mouseKeyName(i.UserInputType)
             if mn then
                 if mouseOverBB() then
@@ -5158,7 +5162,8 @@ local BOX_3D_EDGES = {
     {1,2},{2,4},{4,3},{3,1},{5,6},{6,8},{8,7},{7,5},{1,5},{2,6},{3,7},{4,8},
 }
 
-local WorldToViewportPoint = Camera.WorldToViewportPoint
+-- WorldToViewportPoint вызывается динамически через Camera: для корректного FOV
+local WorldToViewportPoint = function(cam, pos) return cam:WorldToViewportPoint(pos) end
 local boxCfg        = esplib.box
 local healthCfg     = esplib.healthbar
 local healthTextCfg = esplib.healthtext
@@ -5210,25 +5215,33 @@ end
 
 local function project_extents(x0,y0,z0,x1,y1,z1)
     local cx=(x0+x1)*.5; local cz=(z0+z1)*.5
+    local cy=(y0+y1)*.5
     local topW  = Vector3.new(cx, y1 + TOP_EXTRA, cz)
     local botW  = Vector3.new(cx, y0 - BOTTOM_EXTRA, cz)
+    local midW  = Vector3.new(cx, cy, cz)
     local camPos = Camera.CFrame.Position
     local camLook = Camera.CFrame.LookVector
     if (topW - camPos):Dot(camLook) <= 0.5 or (botW - camPos):Dot(camLook) <= 0.5 then
         return nil, nil, false
     end
-    local spTop, onTop = WorldToViewportPoint(Camera, topW)
-    local spBot, onBot = WorldToViewportPoint(Camera, botW)
-    if not onTop or not onBot then return nil, nil, false end
+    local spTop = Camera:WorldToViewportPoint(topW)
+    local spBot = Camera:WorldToViewportPoint(botW)
+    local spMid = Camera:WorldToViewportPoint(midW)
     if spTop.Z <= 0.5 or spBot.Z <= 0.5 then return nil, nil, false end
     local vp = Camera.ViewportSize
-    if math.abs(spTop.X) > vp.X * 2 or math.abs(spBot.X) > vp.X * 2 then return nil, nil, false end
+    if math.abs(spMid.X) > vp.X * 2 then return nil, nil, false end
     local topY = spTop.Y
     local botY = spBot.Y
     if botY <= topY then return nil, nil, false end
-    local h = botY - topY
-    local w = h * WIDTH_MULT
-    local cxS = spTop.X
+    -- Ширина через реальные крайние точки AABB — корректно при любом FOV
+    local leftW  = Vector3.new(x0, cy, cz)
+    local rightW = Vector3.new(x1, cy, cz)
+    local spL = Camera:WorldToViewportPoint(leftW)
+    local spR = Camera:WorldToViewportPoint(rightW)
+    local w = math.abs(spR.X - spL.X)
+    if w < 4 then w = (botY - topY) * WIDTH_MULT end
+    -- Центр бокса берём от середины модели, а не от верхней точки
+    local cxS = spMid.X
     return Vector2.new(cxS - w * 0.5, topY), Vector2.new(cxS + w * 0.5, botY), true
 end
 
@@ -7938,6 +7951,105 @@ task.spawn(function()
                         hookAnimationReload(weapon.CharacterAnimator)
                     end
                 end)
+            end)
+        end
+    end)
+
+    -- =====================================================================
+    -- AUTO RELOAD — нажимает R когда патроны кончились
+    -- =====================================================================
+    MiscWeaponBox:AddToggle("AutoReload", {
+        Text = "Auto Reload",
+        Default = false,
+    })
+
+    task.spawn(function()
+        local lastAmmo = nil
+        local reloading = false
+
+        while true do
+            task.wait(0.05)
+            pcall(function()
+                if not (Toggles.AutoReload and Toggles.AutoReload.Value) then
+                    reloading = false
+                    lastAmmo = nil
+                    return
+                end
+
+                -- Читаем патроны из PlayerGui (BloxStrike показывает их в HUD)
+                local ammo = nil
+                pcall(function()
+                    local pg = LP:FindFirstChild("PlayerGui")
+                    if not pg then return end
+                    local mg = pg:FindFirstChild("MainGui")
+                    if not mg then return end
+                    -- Ищем текстовый лейбл с патронами в HUD
+                    local gameplay = mg:FindFirstChild("Gameplay")
+                    if not gameplay then return end
+                    local bottom = gameplay:FindFirstChild("Bottom")
+                    if not bottom then return end
+                    local inv = bottom:FindFirstChild("Inventory")
+                    if not inv then return end
+                    -- Текущий слот оружия
+                    for _, slot in ipairs(inv:GetChildren()) do
+                        local selected = slot:GetAttribute("Selected") or slot:FindFirstChild("Selected")
+                        if selected and (selected == true or (typeof(selected) == "Instance" and selected.Value == true)) then
+                            local ammoLbl = slot:FindFirstChild("Ammo") or slot:FindFirstChild("AmmoCount")
+                            if ammoLbl and ammoLbl:IsA("TextLabel") then
+                                ammo = tonumber(ammoLbl.Text:match("%d+"))
+                            end
+                            break
+                        end
+                    end
+                end)
+
+                -- Fallback: читаем из weapon object напрямую
+                if ammo == nil then
+                    pcall(function()
+                        local w = Weapon
+                        if not w then return end
+                        -- Пробуем атрибуты
+                        local a = w:GetAttribute("Ammo") or w:GetAttribute("CurrentAmmo")
+                            or w:GetAttribute("ammo") or w:GetAttribute("Bullets")
+                        if a ~= nil then ammo = tonumber(a) end
+                        -- Пробуем через Stats папку
+                        if ammo == nil then
+                            local stats = w:FindFirstChild("Stats")
+                            if stats then
+                                local av = stats:FindFirstChild("Ammo") or stats:FindFirstChild("CurrentAmmo")
+                                if av and av:IsA("NumberValue") or av and av:IsA("IntValue") then
+                                    ammo = av.Value
+                                end
+                            end
+                        end
+                    end)
+                end
+
+                if ammo == nil then return end
+
+                -- Когда патроны стали 0 — нажимаем R
+                if ammo == 0 and lastAmmo ~= 0 and not reloading then
+                    reloading = true
+                    pcall(function()
+                        -- Симулируем нажатие R
+                        if keypress then
+                            keypress(0x52) -- R
+                            task.wait(0.05)
+                            keyrelease(0x52)
+                        else
+                            -- Через VirtualInputManager если keypress недоступен
+                            local vim = game:GetService("VirtualInputManager")
+                            vim:SendKeyEvent(true,  Enum.KeyCode.R, false, game)
+                            task.wait(0.05)
+                            vim:SendKeyEvent(false, Enum.KeyCode.R, false, game)
+                        end
+                    end)
+                end
+
+                if ammo ~= nil and ammo > 0 then
+                    reloading = false
+                end
+                lastAmmo = ammo
             end)
         end
     end)
