@@ -1613,6 +1613,8 @@ do
                 local mn = mouseKeyName(i.UserInputType)
                 if mn then
                     if i.UserInputType == Enum.UserInputType.MouseButton1 then
+                        if not mouseOverBB() then return end
+                        if os.clock() - ctrl._lastMouse1Bind < 0.5 then return end
                         ctrl._lastMouse1Bind = os.clock()
                     end
                     if ctrl.Value == mn then
@@ -1654,6 +1656,7 @@ do
             if mn then
                 if mouseOverBB() then
                     ctrl._editing = true
+                    ctrl._lastMouse1Bind = os.clock()
                     KeyBindActive = ctrl
                     refreshText()
                     task.delay(6, function()
@@ -2383,6 +2386,26 @@ do
             return MakeDividerUI(frame, nextOrder())
         end
 
+        function api:AddPanel(sizeY)
+            local order = nextOrder()
+            local panel = Instance.new("Frame")
+            panel.Name = "Panel"
+            panel.Size = UDim2.new(1, 0, 0, sizeY or 170)
+            panel.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+            panel.BorderSizePixel = 0
+            panel.LayoutOrder = order
+            panel.ZIndex = 2
+            panel.Parent = frame
+            local cv = Instance.new("UIStroke")
+            cv.Color = Color3.fromRGB(52, 52, 58)
+            cv.Thickness = 1
+            cv.Parent = panel
+            local cr = Instance.new("UICorner")
+            cr.CornerRadius = UDim.new(0, 4)
+            cr.Parent = panel
+            return panel
+        end
+
         function api:AddDependencyBox()
             local dep = Instance.new("Frame")
             dep.Size = UDim2.new(1, 0, 0, 0)
@@ -3101,165 +3124,342 @@ AntiAimThirdBox:AddSlider("ThirdPersonDist", {
 })
 
 -- =========================================================================
--- [ ANTI-AIM - GIRL MODEL ]
+-- [ ANTI-AIM - GIRL MODEL (FULL 3D) ]
 -- =========================================================================
 
 do
 local AntiAimGirlBox = Tabs.AntiAim:AddLeftGroupbox("Girl Model", "users")
 
-AntiAimGirlBox:AddToggle("GirlModel", {
-    Text = "Girl Model",
-    Default = false,
-}):AddKeyPicker("GirlModelKey", {
-    Text = "Girl Model Key",
-    Default = "None",
-    Mode = "Toggle",
-})
-
-local GIRL_TIME = 0.5
-local GIRL_HEAD = { 6532260109, 6086548659 }
-local GIRL_TORSO = { 16988847156, 15884282892 }
-local GIRL_PROTECTED = {
-    HumanoidRootPart = true,
-    CameraPart = true,
+-- ============================================================
+-- НАСТРОЙКИ МОДЕЛЕЙ
+-- ============================================================
+local GIRL_MODELS = {
+    ["Girl"] = {
+        id      = 90779240680461,
+        scale   = 1.6,
+        offsetX = 0,
+        offsetY = 0,
+        offsetZ = 0,
+        yaw     = 0,
+    },
+    ["Tun Tun Sahur"] = {
+        id      = 94100079746169,
+        scale   = 1.0,
+        offsetX = 0,
+        offsetY = 0,
+        offsetZ = 0,
+        yaw     = 0,
+    },
 }
 
-local girlAccessories = {}
-
-local function girlWeld(part0, part1, c0, c1)
-    local weld = Instance.new("Weld")
-    weld.Part0 = part0
-    weld.Part1 = part1
-    weld.C0 = c0
-    weld.C1 = c1
-    weld.Parent = part0
-    return weld
+local gModelNames = {}
+for name in pairs(GIRL_MODELS) do
+    table.insert(gModelNames, name)
 end
+table.sort(gModelNames)
 
-local function girlFindAttachment(rootPart, name)
-    for _, desc in ipairs(rootPart:GetDescendants()) do
-        if desc:IsA("Attachment") and desc.Name == name then
-            return desc
-        end
-    end
-end
+AntiAimGirlBox:AddToggle("GirlModel", {
+    Text = "Enable Models",
+    Default = false,
+})
 
-local function girlAddAccessory(accessoryId, parentPart)
-    local ok, res = pcall(function()
-        local acc = game:GetObjects("rbxassetid://" .. tostring(accessoryId))[1]
-        local character = LP.Character
-        acc.Parent = game.Workspace
-        local handle = acc:FindFirstChild("Handle")
-        if handle then
-            handle.CanCollide = false
-            local att = handle:FindFirstChildOfClass("Attachment")
-            if att then
-                local pa = girlFindAttachment(parentPart, att.Name)
-                if pa then
-                    girlWeld(parentPart, handle, pa.CFrame, att.CFrame)
-                end
-            else
-                local parent = character:FindFirstChild(parentPart.Name)
-                if parent then
-                    local ap = acc.AttachmentPoint
-                    girlWeld(parent, handle, CFrame.new(0, 0.5, 0), ap.CFrame)
-                end
-            end
-        end
-        table.insert(girlAccessories, acc)
-        acc.Parent = character
+AntiAimGirlBox:AddDropdown("GirlModelSelect", {
+    Text = "Model",
+    Values = gModelNames,
+    Default = gModelNames[1],
+})
+
+-- ============================================================
+-- СОСТОЯНИЕ
+-- ============================================================
+local gCurrentModel = gModelNames[1]
+local gGirlModel        = nil
+local gGirlHoldConn     = nil
+local gGirlOrigProps    = nil
+local gModelCache       = {}
+
+local function gGetScale()    return GIRL_MODELS[gCurrentModel] and GIRL_MODELS[gCurrentModel].scale   or 1 end
+local function gGetOffsetX()  return GIRL_MODELS[gCurrentModel] and GIRL_MODELS[gCurrentModel].offsetX or 0 end
+local function gGetOffsetY()  return GIRL_MODELS[gCurrentModel] and GIRL_MODELS[gCurrentModel].offsetY or 0 end
+local function gGetOffsetZ()  return GIRL_MODELS[gCurrentModel] and GIRL_MODELS[gCurrentModel].offsetZ or 0 end
+local function gGetYaw()      return GIRL_MODELS[gCurrentModel] and GIRL_MODELS[gCurrentModel].yaw     or 0 end
+
+-- ============================================================
+-- ЛОГИКА
+-- ============================================================
+local function gGetTemplate(name)
+    local entry = GIRL_MODELS[name]
+    if not entry then return nil end
+    local id = entry.id
+    if gModelCache[id] then return gModelCache[id] end
+    local ok, objs = pcall(function()
+        return game:GetObjects("rbxassetid://" .. tostring(id))
     end)
-    return ok, res
+    if not ok or not objs or #objs == 0 then
+        warn("[GirlModel] не загрузилось ID " .. tostring(id) .. " (" .. name .. ")")
+        return nil
+    end
+    gModelCache[id] = objs[1]
+    return objs[1]
 end
 
-local function girlHide(char)
+local function gHideChar(char)
+    if not char then return end
+    gGirlOrigProps = gGirlOrigProps or {}
     for _, p in ipairs(char:GetDescendants()) do
         pcall(function()
-            if GIRL_PROTECTED[p.Name] then return end
+            if p.Name == "HumanoidRootPart" or p.Name == "CameraPart" then return end
             if p:IsA("BasePart") then
                 if p.Name == "Handle" and p:FindFirstAncestorOfClass("Accessory") then return end
+                gGirlOrigProps[p] = gGirlOrigProps[p] or {}
+                gGirlOrigProps[p].Transparency = p.Transparency
+                gGirlOrigProps[p].CanCollide   = p.CanCollide
                 p.Transparency = 1
-                p.CanCollide = false
+                p.CanCollide   = false
             elseif p:IsA("Decal") or p:IsA("Texture") or p:IsA("SurfaceAppearance") then
+                gGirlOrigProps[p] = gGirlOrigProps[p] or {}
+                gGirlOrigProps[p].Transparency = p.Transparency
                 p.Transparency = 1
             end
         end)
     end
+    for _, acc in ipairs(char:GetChildren()) do
+        if acc:IsA("Accessory") then
+            gGirlOrigProps[acc] = gGirlOrigProps[acc] or {}
+            gGirlOrigProps[acc].Parent = acc.Parent
+            acc.Parent = nil
+        end
+    end
 end
 
-local function girlShow(char)
-    if not char then return end
-    for _, acc in ipairs(girlAccessories) do
-        pcall(function() acc:Destroy() end)
+local function gShowChar(char)
+    if gGirlOrigProps then
+        for obj, props in pairs(gGirlOrigProps) do
+            pcall(function()
+                if obj:IsA("Accessory") and props.Parent then
+                    obj.Parent = props.Parent
+                elseif props.Transparency ~= nil then
+                    obj.Transparency = props.Transparency
+                end
+                if props.CanCollide ~= nil then
+                    obj.CanCollide = props.CanCollide
+                end
+            end)
+        end
     end
-    girlAccessories = {}
-    for _, p in ipairs(char:GetDescendants()) do
+    gGirlOrigProps = nil
+    if gGirlHoldConn then gGirlHoldConn:Disconnect() gGirlHoldConn = nil end
+    if gGirlModel then gGirlModel:Destroy() gGirlModel = nil end
+end
+
+local function gClearWelds()
+    local char = LP.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    for _, w in ipairs(hrp:GetChildren()) do
+        if w.Name == "GirlModelWeld" then
+            w:Destroy()
+        end
+    end
+end
+
+local gReloadGirl  -- forward declaration
+
+local function gAttachGirl(char)
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    if gGirlModel then gGirlModel:Destroy() gGirlModel = nil end
+    if gGirlHoldConn then gGirlHoldConn:Disconnect() gGirlHoldConn = nil end
+    gClearWelds()
+
+    local template = gGetTemplate(gCurrentModel)
+    if not template then return end
+
+    local model = template:Clone()
+    if not model:IsA("Model") then
+        local wrap = Instance.new("Model")
+        model.Parent = wrap
+        model = wrap
+    end
+
+    gGirlModel = model
+    model.Name = "GirlModel_Custom"
+    model.Parent = char
+
+    for _, d in ipairs(model:GetDescendants()) do
         pcall(function()
-            if GIRL_PROTECTED[p.Name] then return end
-            if p:IsA("BasePart") then
-                p.Transparency = 0
-                p.CanCollide = true
-            elseif p:IsA("Decal") or p:IsA("Texture") or p:IsA("SurfaceAppearance") then
-                p.Transparency = 0
+            if d:IsA("Script") or d:IsA("LocalScript") or d:IsA("ModuleScript") then
+                d:Destroy()
+            elseif d:IsA("Sound") then
+                d:Destroy()
+            elseif d:IsA("Humanoid") then
+                d:Destroy()
+            elseif d:IsA("Animator") or d:IsA("AnimationController") then
+                d:Destroy()
+            elseif d:IsA("BodyVelocity") or d:IsA("BodyGyro") or d:IsA("BodyPosition")
+                or d:IsA("AlignPosition") or d:IsA("AlignOrientation")
+                or d:IsA("VectorForce") or d:IsA("LinearVelocity")
+                or d:IsA("Weld") or d:IsA("WeldConstraint")
+                or d:IsA("Motor6D") or d:IsA("Snap") then
+                d:Destroy()
             end
         end)
     end
+
+    local sc = gGetScale()
+    pcall(function()
+        if sc ~= 1 then model:ScaleTo(sc) end
+    end)
+
+    for _, d in ipairs(model:GetDescendants()) do
+        pcall(function()
+            if d:IsA("BasePart") then
+                d.CanCollide = false
+                d.CanQuery   = false
+                d.CanTouch   = false
+                d.Massless   = true
+                d.Anchored   = true
+            end
+        end)
+    end
+
+    pcall(function() model:PivotTo(CFrame.new(0, 0, 0)) end)
+
+    local minY = math.huge
+    for _, d in ipairs(model:GetDescendants()) do
+        if d:IsA("BasePart") then
+            local bot = d.Position.Y - d.Size.Y / 2
+            if bot < minY then minY = bot end
+        end
+    end
+    if minY == math.huge then return end
+
+    local pivot    = model:GetPivot().Position
+    local footOff  = pivot.Y - minY
+    local hrpPos   = hrp.Position
+    local charFootY = hrpPos.Y - 3 + gGetOffsetY()
+    local targetPos = Vector3.new(
+        hrpPos.X + gGetOffsetX(),
+        charFootY + footOff,
+        hrpPos.Z + gGetOffsetZ()
+    )
+    local targetCF = CFrame.new(targetPos) * CFrame.Angles(0, math.rad(gGetYaw()), 0)
+    pcall(function() model:PivotTo(targetCF) end)
+
+    for _, d in ipairs(model:GetDescendants()) do
+        pcall(function()
+            if d:IsA("BasePart") then
+                d.Anchored = false
+                local offset = hrp.CFrame:ToObjectSpace(d.CFrame)
+                local weld = Instance.new("Weld")
+                weld.Name   = "GirlModelWeld"
+                weld.Part0  = hrp
+                weld.Part1  = d
+                weld.C0     = offset
+                weld.C1     = CFrame.new()
+                weld.Parent = hrp
+            end
+        end)
+    end
+
+    gGirlHoldConn = RunService.Heartbeat:Connect(function()
+        if not gGirlModel or not gGirlModel.Parent then
+            if gGirlHoldConn then gGirlHoldConn:Disconnect() gGirlHoldConn = nil end
+            return
+        end
+        local h = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+        if not h then return end
+        local hasWelds = false
+        for _, w in ipairs(h:GetChildren()) do
+            if w.Name == "GirlModelWeld" then
+                hasWelds = true
+                break
+            end
+        end
+        if not hasWelds then
+            gReloadGirl()
+        end
+    end)
 end
 
-local function girlApply(char)
+gReloadGirl = function()
+    local char = LP.Character
     if not char then return end
-    girlHide(char)
-    for _, id in ipairs(GIRL_HEAD) do
-        pcall(function() girlAddAccessory(id, char.Head) end)
-    end
-    local torso = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso")
-    for _, id in ipairs(GIRL_TORSO) do
-        pcall(function() girlAddAccessory(id, torso) end)
-    end
-    task.wait(0.1)
-    girlHide(char)
+    if gGirlModel then gGirlModel:Destroy() gGirlModel = nil end
+    if gGirlHoldConn then gGirlHoldConn:Disconnect() gGirlHoldConn = nil end
+    gClearWelds()
+    task.wait(0.05)
+    gAttachGirl(char)
 end
 
-local function isGirlActive()
-    local base = (Toggles.GirlModel and Toggles.GirlModel.Value) or false
-    if Options.GirlModelKey and Options.GirlModelKey.Value ~= "None" and Options.GirlModelKey.Value ~= "Always" and Options.GirlModelKey.Value ~= "Toggle" then
-        return Options.GirlModelKey:GetState()
-    end
-    return base
+local function gStopGirl()
+    if gGirlHoldConn then gGirlHoldConn:Disconnect() gGirlHoldConn = nil end
+    gClearWelds()
+    if gGirlModel then gGirlModel:Destroy() gGirlModel = nil end
+    gShowChar(LP.Character)
 end
 
-local girlLastChar = nil
-local girlLastApply = 0
+local function gStartGirl()
+    local char = LP.Character
+    if char then
+        gHideChar(char)
+        task.wait(0.1)
+        gAttachGirl(char)
+    end
+end
 
+-- Следим за изменением модели в дропдауне
+if Options.GirlModelSelect then
+    Options.GirlModelSelect:OnChanged(function(v)
+        if not GIRL_MODELS[v] then return end
+        gCurrentModel = v
+        if Toggles.GirlModel and Toggles.GirlModel.Value then
+            gReloadGirl()
+        end
+    end)
+end
+
+-- Автоподхват активности
 task.spawn(function()
     while true do
         task.wait(0.5)
-        local active = isGirlActive()
-        local char = LP.Character
-        if not active then
-            girlShow(char)
-            girlLastChar = nil
-        elseif not char or not char.Parent then
-            girlLastChar = nil
-        elseif char ~= girlLastChar then
-            girlLastChar = char
-            task.wait(GIRL_TIME)
-            girlApply(char)
-            girlLastApply = tick()
-        else
-            local hasAny = false
-            for _, child in ipairs(char:GetChildren()) do
-                if child:IsA("Accessory") or child:FindFirstChild("Handle") then
-                    hasAny = true
-                    break
-                end
-            end
-            if not hasAny and (tick() - girlLastApply) > 2 then
-                task.wait(GIRL_TIME)
-                girlApply(char)
-                girlLastApply = tick()
+        local active = Toggles.GirlModel and Toggles.GirlModel.Value
+        -- Синхронизируем выбранную модель из дропдауна
+        if Options.GirlModelSelect then
+            local sel = Options.GirlModelSelect.Value
+            if sel and GIRL_MODELS[sel] and sel ~= gCurrentModel then
+                gCurrentModel = sel
             end
         end
+        local char = LP.Character
+        if not active then
+            if gGirlModel and gGirlModel.Parent then
+                gStopGirl()
+            end
+        elseif char and char.Parent then
+            if not gGirlModel or not gGirlModel.Parent then
+                gHideChar(char)
+                task.wait(0.1)
+                gAttachGirl(char)
+            end
+        end
+    end
+end)
+
+-- Респавн
+LP.CharacterAdded:Connect(function(newChar)
+    if gGirlHoldConn then gGirlHoldConn:Disconnect() gGirlHoldConn = nil end
+    gClearWelds()
+    if gGirlModel then gGirlModel:Destroy() gGirlModel = nil end
+    gGirlOrigProps = nil
+    if Toggles.GirlModel and Toggles.GirlModel.Value then
+        task.wait(1)
+        gHideChar(newChar)
+        task.wait(0.2)
+        gAttachGirl(newChar)
     end
 end)
 end
@@ -4724,8 +4924,8 @@ WeaponModsBox:AddToggle("NoSpread", {
 -- [ COMBAT TAB - BLATANT + RAGE ]
 -- =========================================================================
 
-local CombatBlatantBox = Tabs.Legit:AddLeftGroupbox("Silent Aim", "zap")
 local RageBlatantBox = Tabs.Combat:AddLeftGroupbox("Ragebot", "flame")
+local CombatBlatantBox = Tabs.Combat:AddLeftGroupbox("Silent Aim", "zap")
 
 CombatBlatantBox:AddToggle("SilentAim", {
     Text = "Enable Silent Aim",
@@ -4867,6 +5067,13 @@ VisualsESPBox:AddLabel("Skeleton Color "):AddColorPicker("ESPSkeletonColorB", { 
 
 VisualsESPBox:AddToggle("ESPCircularTarget", { Text = "Circular Target", Default = false })
 VisualsESPBox:AddLabel("Circular Target Color"):AddColorPicker("ESPCircularTargetColor", { Default = Color3.fromRGB(255,200,0), Title = "Circular Target Color" })
+
+local ESPPreviewPanel
+do
+    local b = Tabs.Visuals:AddRightGroupbox("ESP Preview", "eye")
+    b:AddToggle("ESPPreviewToggle", { Text = "Show Preview", Default = true })
+    ESPPreviewPanel = b:AddPanel(190)
+end
 
 -- =========================================================================
 -- [ VEST DETAILS TEAM CHECK LOGIC ]
@@ -5688,6 +5895,223 @@ RunService.RenderStepped:Connect(function(dt)
 end)
 
 for k,v in next,espfunctions do esplib[k]=v end
+
+(function()
+    local P = ESPPreviewPanel
+    local function mkF(x,y,w,h,col)
+        local f = Instance.new("Frame")
+        f.Size = UDim2.new(0,w,0,h)
+        f.Position = UDim2.new(0,x,0,y)
+        f.BackgroundColor3 = col
+        f.BorderSizePixel = 0
+        f.ZIndex = 5
+        f.Parent = P
+        return f
+    end
+    local skin = Color3.fromRGB(255,214,170)
+    local hair = Color3.fromRGB(50,44,52)
+    local dress = Color3.fromRGB(120,90,190)
+    local dark = Color3.fromRGB(40,40,44)
+    local parts = {}
+    local function part(name)
+        local p = { x=0,y=0,w=0,h=0 }
+        parts[name] = p
+        return p
+    end
+    local body = {}
+    function body:addFrame(name, col)
+        local p = part(name)
+        p.f = mkF(0,0,p.w,p.h,col)
+        p.f.BackgroundTransparency = 1
+        return p
+    end
+    body.head     = body:addFrame("head", skin)
+    body.hair     = body:addFrame("hair", hair)
+    body.bodTop   = body:addFrame("bodTop", dress)
+    body.skirt    = body:addFrame("skirt", dress)
+    body.armL     = body:addFrame("armL", skin)
+    body.armR     = body:addFrame("armR", skin)
+    body.legL     = body:addFrame("legL", skin)
+    body.legR     = body:addFrame("legR", skin)
+    body.shoeL    = body:addFrame("shoeL", dark)
+    body.shoeR    = body:addFrame("shoeR", dark)
+
+    local lines = {}
+    local function mkLine()
+        local l = Instance.new("Frame")
+        l.BackgroundColor3 = Color3.new(1,1,1)
+        l.BackgroundTransparency = 1
+        l.BorderSizePixel = 0
+        l.ZIndex = 7
+        l.Parent = P
+        lines[#lines+1] = l
+        return l
+    end
+    local function setLine(l, x1,y1,x2,y2, th)
+        local dx,dy = x2-x1, y2-y1
+        local len = math.sqrt(dx*dx+dy*dy)
+        if len < 0.001 then len = 0.001 end
+        l.Size = UDim2.new(0, len, 0, th)
+        l.Position = UDim2.new(0, x1 + dx*0.5 - len*0.5, 0, y1 + dy*0.5 - th*0.5)
+        l.Rotation = math.atan2(dy, dx) * 180 / math.pi
+    end
+
+    local boxLines = { mkLine(), mkLine(), mkLine(), mkLine() }
+    local cornerLines = {}
+    for i=1,8 do cornerLines[i] = mkLine() end
+    local box3d = {}
+    for i=1,12 do box3d[i] = mkLine() end
+    local skelLines = {}
+    for i=1,10 do skelLines[i] = mkLine() end
+
+    local nameTxt = Instance.new("TextLabel")
+    nameTxt.BackgroundTransparency = 1
+    nameTxt.Text = "PREVIEW"
+    nameTxt.Font = Enum.Font.Code
+    nameTxt.TextSize = 11
+    nameTxt.TextColor3 = Color3.new(1,1,1)
+    nameTxt.ZIndex = 7
+    nameTxt.Parent = P
+
+    local healthTxt = Instance.new("TextLabel")
+    healthTxt.BackgroundTransparency = 1
+    healthTxt.Text = "100"
+    healthTxt.Font = Enum.Font.Code
+    healthTxt.TextSize = 10
+    healthTxt.TextColor3 = Color3.new(1,1,1)
+    healthTxt.ZIndex = 7
+    healthTxt.Parent = P
+
+    local function lerpColor(a,b,t)
+        return Color3.new(a.R+(b.R-a.R)*t, a.G+(b.G-a.G)*t, a.B+(b.B-a.B)*t)
+    end
+
+    local pe=RunService.RenderStepped:Connect(function()
+        local on = Toggles.ESPPreviewToggle.Value
+        P.Visible = on
+        if not on then return end
+        local W = P.AbsoluteSize.X
+        local H = P.AbsoluteSize.Y
+        local cx = W * 0.5
+        local top = 16
+        local bot = H - 10
+        local bh = bot - top
+        local bw = bh * WIDTH_MULT
+        local left = cx - bw * 0.5
+        local right = cx + bw * 0.5
+
+        local hR = math.min(16, bh * 0.11)
+        local hC = top + bh * 0.08
+        local shY = hC + hR + bh * 0.06
+        local hipY = top + bh * 0.52
+        local kneeY = top + bh * 0.72
+        local footY = bot - 6
+        local shW = bh * 0.16
+        local armW = bh * 0.035
+        local legW = bh * 0.04
+
+        local function place(p, x, y, w, h)
+            p.x, p.y, p.w, p.h = x, y, w, h
+            p.f.BackgroundTransparency = 0
+            p.f.Size = UDim2.new(0, w, 0, h)
+            p.f.Position = UDim2.new(0, x - w*0.5, 0, y - h*0.5)
+        end
+        place(body.hair,   cx, hC, hR*1.8, hR*1.7)
+        place(body.head,   cx, hC + 2, hR*1.7, hR*1.7)
+        place(body.bodTop, cx, hC + hR*1.5, shW*1.25, bh*0.12)
+        place(body.skirt,  cx, hC + hR*1.5 + bh*0.12 + bh*0.09, shW*1.35, bh*0.16)
+        local armTop = hC + hR*1.4
+        local armBot = hipY + 2
+        place(body.armL, cx - shW*1.15, (armTop+armBot)*0.5, armW, armBot-armTop)
+        place(body.armR, cx + shW*1.15, (armTop+armBot)*0.5, armW, armBot-armTop)
+        local legTop = hipY + bh*0.16
+        place(body.legL, cx - shW*0.42, (legTop+footY)*0.5, legW, footY-legTop)
+        place(body.legR, cx + shW*0.42, (legTop+footY)*0.5, legW, footY-legTop)
+        place(body.shoeL, cx - shW*0.42, footY+3, legW*1.6, 6)
+        place(body.shoeR, cx + shW*0.42, footY+3, legW*1.6, 6)
+
+        for _,l in ipairs(boxLines) do l.Visible = false end
+        for _,l in ipairs(cornerLines) do l.Visible = false end
+        for _,l in ipairs(box3d) do l.Visible = false end
+        for _,l in ipairs(skelLines) do l.Visible = false end
+
+        local showBox = boxCfg.enabled and boxCfg.type ~= "Disabled"
+        local cA = boxCfg.colorA
+        local cB = boxCfg.colorB
+        local mid = lerpColor(cA, cB, 0.5)
+        local th = BOX_THICKNESS
+
+        if showBox then
+            local t = boxCfg.type
+            if t == "2D" then
+                local topL, botL = left, right
+                setLine(boxLines[1], left, top, right, top, th); boxLines[1].Color = cA
+                setLine(boxLines[2], right, top, right, bot, th); boxLines[2].Color = cB
+                setLine(boxLines[3], left, bot, right, bot, th); boxLines[3].Color = cB
+                setLine(boxLines[4], left, top, left, bot, th); boxLines[4].Color = cA
+                boxLines[1].Color = cA; boxLines[2].Color = cB; boxLines[3].Color = cB; boxLines[4].Color = cA
+                for _,l in ipairs(boxLines) do l.Visible = true end
+            elseif t == "Corner" then
+                local cl = math.max(12, bw*0.22)
+                local crn = 8
+                local pts = {
+                    {left, top, left+cl, top}, {left, top, left, top+cl},
+                    {right, top, right-cl, top}, {right, top, right, top+cl},
+                    {left, bot, left+cl, bot}, {left, bot, left, bot-cl},
+                    {right, bot, right-cl, bot}, {right, bot, right, bot-cl},
+                }
+                for i=1,crn do
+                    setLine(cornerLines[i], pts[i][1], pts[i][2], pts[i][3], pts[i][4], th)
+                    cornerLines[i].Color = i%2==1 and cA or cB
+                    cornerLines[i].Visible = true
+                end
+            elseif t == "3D" then
+                local offX = bw*0.12
+                local offY = -bh*0.08
+                local p = {
+                    {left, top}, {right, top}, {right, bot}, {left, bot},
+                    {left+offX, top+offY}, {right+offX, top+offY}, {right+offX, bot+offY}, {left+offX, bot+offY},
+                }
+                local edges = {{1,2},{2,3},{3,4},{4,1},{5,6},{6,7},{7,8},{8,5},{1,5},{2,6},{3,7},{4,8}}
+                for i=1,12 do
+                    setLine(box3d[i], p[edges[i][1]][1], p[edges[i][1]][2], p[edges[i][2]][1], p[edges[i][2]][2], th)
+                    box3d[i].Color = mid
+                    box3d[i].Visible = true
+                end
+            end
+        end
+
+        local showSkel = skeletonCfg.enabled
+        if showSkel then
+            local skA = skeletonCfg.colorA
+            local skB = skeletonCfg.colorB
+            local steps = 10
+            local pts = {
+                {cx, hC}, {cx, hC + hR*1.5},
+                {cx - shW*1.15, hC + hR*1.7}, {cx - shW*1.15, hipY}, {cx + shW*1.15, hC + hR*1.7}, {cx + shW*1.15, hipY},
+                {cx, hipY}, {cx - shW*0.42, (legTop+footY)*0.5}, {cx - shW*0.42, footY}, {cx + shW*0.42, (legTop+footY)*0.5}, {cx + shW*0.42, footY},
+            }
+            local conns = {
+                {1,2}, {2,3}, {3,4}, {2,5}, {5,6}, {2,7}, {7,8}, {8,9}, {7,10}, {10,11},
+            }
+            for i=1,10 do
+                local a = pts[conns[i][1]]; local b = pts[conns[i][2]]
+                setLine(skelLines[i], a[1], a[2], b[1], b[2], skeletonCfg.thickness)
+                skelLines[i].Color = lerpColor(skA, skB, (i-1)/steps)
+                skelLines[i].Visible = true
+            end
+        end
+
+        nameTxt.Visible = esplib.name.enabled
+        nameTxt.Position = UDim2.new(0, cx - 34, 0, top - 16)
+        nameTxt.Size = UDim2.new(0, 68, 0, 14)
+        nameTxt.TextColor3 = esplib.name.fill
+        healthTxt.Visible = esplib.healthtext.enabled
+        healthTxt.Position = UDim2.new(0, right + 3, 0, (top+bot)*0.5 - 7)
+        healthTxt.Size = UDim2.new(0, 30, 0, 14)
+        healthTxt.TextColor3 = esplib.healthtext.color
+    end)
+end)()
 
 local function updateESPSettings()
     local bt=Options.ESPBoxType.Value
@@ -6849,6 +7273,7 @@ if _G.BS_CircleZoneLoaded then
 else
     _G.BS_CircleZoneLoaded = true
 
+    local function ZoneESPModule()
     if not game:IsLoaded() then game.Loaded:Wait() end
     task.wait(1)
 
@@ -7179,6 +7604,8 @@ else
             end
         end
     end)
+    end
+    ZoneESPModule()
 end
 
 -- =========================================================================
@@ -7709,7 +8136,7 @@ end)
 -- =========================================================================
 -- [ SAVE MANAGER / THEME MANAGER ]
 -- =========================================================================
-
+local function smModule()
 local smFolder = ""
 local smSubFolder = ""
 local smIgnore = {}
@@ -8002,6 +8429,8 @@ function SaveManager:BuildConfigSection(tab)
         end
     end)
 end
+end
+smModule()
 
 -- =========================================================================
 -- [ SETTINGS FINALIZATION ]
