@@ -4916,7 +4916,7 @@ getgenv().esplib = {
     name       = { enabled=false, fill=Color3.new(1,1,1), size=13 },
     distance   = { enabled=false, color=Color3.new(1,1,1), size=13 },
     tracer     = { enabled=false, fillA=Color3.new(1,1,1), fillB=Color3.fromRGB(255,0,128), outline=Color3.new(0,0,0), from="bottom" },
-    skeleton   = { enabled=false, colorA=Color3.new(1,1,1), colorB=Color3.fromRGB(0,255,255), thickness=2 },
+    skeleton   = { enabled=false, colorA=Color3.new(1,1,1), colorB=Color3.fromRGB(0,255,255), thickness=3.5 },
     weapon     = { enabled=false, fill=Color3.new(1,1,1), size=13 },
     circulartarget = { enabled=false, color=Color3.fromRGB(255,200,0) },
 }
@@ -4964,9 +4964,17 @@ local skeletonCfg   = esplib.skeleton
 local weaponCfg     = esplib.weapon
 local circularTargetCfg = esplib.circulartarget
 
-local BASE_DIST = 20
-local BASE_W    = 86
-local BASE_H    = 155
+local WIDTH_MULT    = 0.52
+local TOP_EXTRA     = -0.3
+local BOTTOM_EXTRA  = 1.0
+local BOX_THICKNESS = 1
+
+getgenv().ESP_SetWidth = function(v) WIDTH_MULT = v or 0.65 end
+getgenv().ESP_SetBottom = function(v) BOTTOM_EXTRA = v or 1.5 end
+getgenv().ESP_SetTop = function(v) TOP_EXTRA = v or 0.2 end
+getgenv().ESP_SetColor = function(c) boxCfg.colorA = c; boxCfg.colorB = c end
+getgenv().ESP_Enable = function() boxCfg.enabled = true end
+getgenv().ESP_Disable = function() boxCfg.enabled = false end
 
 local partHalfExtentCache = setmetatable({},{__mode="k"})
 
@@ -4995,17 +5003,28 @@ local function compute_world_aabb(parts)
     return x0,y0,z0,x1,y1,z1
 end
 
-local function project_fixed_box(x0,y0,z0,x1,y1,z1)
-    local cx=(x0+x1)*.5; local cy=(y0+y1)*.5; local cz=(z0+z1)*.5
-    local sp,vis=WorldToViewportPoint(Camera,Vector3.new(cx,cy,cz))
-    if not vis and sp.Z <= 0 then return nil,nil,false end
-    local depth=sp.Z
-    if depth<=0 then depth = 0.1 end
-    local scale=BASE_DIST/depth
-    local w=BASE_W*scale
-    local h=BASE_H*scale
-    local sx,sy=sp.X,sp.Y
-    return Vector2.new(sx-w*.5,sy-h*.5), Vector2.new(sx+w*.5,sy+h*.5), true
+local function project_extents(x0,y0,z0,x1,y1,z1)
+    local cx=(x0+x1)*.5; local cz=(z0+z1)*.5
+    local topW  = Vector3.new(cx, y1 + TOP_EXTRA, cz)
+    local botW  = Vector3.new(cx, y0 - BOTTOM_EXTRA, cz)
+    local camPos = Camera.CFrame.Position
+    local camLook = Camera.CFrame.LookVector
+    if (topW - camPos):Dot(camLook) <= 0.5 or (botW - camPos):Dot(camLook) <= 0.5 then
+        return nil, nil, false
+    end
+    local spTop, onTop = WorldToViewportPoint(Camera, topW)
+    local spBot, onBot = WorldToViewportPoint(Camera, botW)
+    if not onTop or not onBot then return nil, nil, false end
+    if spTop.Z <= 0.5 or spBot.Z <= 0.5 then return nil, nil, false end
+    local vp = Camera.ViewportSize
+    if math.abs(spTop.X) > vp.X * 2 or math.abs(spBot.X) > vp.X * 2 then return nil, nil, false end
+    local topY = spTop.Y
+    local botY = spBot.Y
+    if botY <= topY then return nil, nil, false end
+    local h = botY - topY
+    local w = h * WIDTH_MULT
+    local cxS = spTop.X
+    return Vector2.new(cxS - w * 0.5, topY), Vector2.new(cxS + w * 0.5, botY), true
 end
 
 local function project_aabb_corners_3d(x0,y0,z0,x1,y1,z1)
@@ -5122,12 +5141,12 @@ function espfunctions.add_box(instance)
     local function mkLine(th) local l=Drawing.new("Line"); l.Thickness=th; l.Transparency=1; l.Visible=false; return l end
     local function mkSq(th,f) local s=Drawing.new("Square"); s.Thickness=th; s.Filled=f; s.Transparency=1; s.Visible=false; return s end
     local box={}
-    box.outline=mkSq(3,false); box.fill=mkSq(1,false)
-    box.grad_lines={}; for i=1,16 do box.grad_lines[i]=mkLine(1) end
+    box.outline=mkSq(BOX_THICKNESS + 2,false); box.fill=mkSq(BOX_THICKNESS,false)
+    box.grad_lines={}; for i=1,16 do box.grad_lines[i]=mkLine(BOX_THICKNESS) end
     box.fill_grad_lines = setupFillLines()
     box.corner_fill={}; box.corner_outline={}
-    for i=1,8 do box.corner_fill[i]=mkLine(1); box.corner_outline[i]=mkLine(3) end
-    box.box_3d_lines={}; for i=1,12 do box.box_3d_lines[i]=mkLine(2) end
+    for i=1,8 do box.corner_fill[i]=mkLine(BOX_THICKNESS); box.corner_outline[i]=mkLine(BOX_THICKNESS + 2) end
+    box.box_3d_lines={}; for i=1,12 do box.box_3d_lines[i]=mkLine(BOX_THICKNESS) end
     espinstances[instance]=espinstances[instance] or {}
     espinstances[instance].box=box
 end
@@ -5386,7 +5405,7 @@ RunService.RenderStepped:Connect(function(dt)
 
         local x0,y0,z0,x1,y1,z1=compute_world_aabb(parts)
         if x0 then
-            min2,max2,onscreen=project_fixed_box(x0,y0,z0,x1,y1,z1)
+            min2,max2,onscreen=project_extents(x0,y0,z0,x1,y1,z1)
             if needBox and boxCfg.type=="3D" then
                 c3d,on3d=project_aabb_corners_3d(x0,y0,z0,x1,y1,z1)
             end
@@ -5715,7 +5734,7 @@ local function addEspToCharacter(character)
     esplib.add_healthtext(character)
     esplib.add_distance(character)
     esplib.add_tracer(character)
-    esplib.add_skeleton(character, {thickness=2})
+    esplib.add_skeleton(character, {thickness=3.5})
     esplib.add_weapon(character)
     esplib.add_circulartarget(character)
     
