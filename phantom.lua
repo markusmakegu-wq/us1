@@ -2594,6 +2594,9 @@ do
         menuOpen.v = not menuOpen.v
         pcall(function()
             UserInputService.MouseBehavior = menuOpen.v and Enum.MouseBehavior.Default or Enum.MouseBehavior.LockCenter
+            -- Блокируем/разблокируем управление персонажем
+            local cm = require(LP:WaitForChild("PlayerScripts"):WaitForChild("PlayerModule")):GetControls()
+            if menuOpen.v then cm:Disable() else cm:Enable() end
             local cam = workspace.CurrentCamera
             if cam then
                 if menuOpen.v then
@@ -5068,12 +5071,7 @@ VisualsESPBox:AddLabel("Skeleton Color "):AddColorPicker("ESPSkeletonColorB", { 
 VisualsESPBox:AddToggle("ESPCircularTarget", { Text = "Circular Target", Default = false })
 VisualsESPBox:AddLabel("Circular Target Color"):AddColorPicker("ESPCircularTargetColor", { Default = Color3.fromRGB(255,200,0), Title = "Circular Target Color" })
 
-local ESPPreviewPanel
-do
-    local b = Tabs.Visuals:AddRightGroupbox("ESP Preview", "eye")
-    b:AddToggle("ESPPreviewToggle", { Text = "Show Preview", Default = true })
-    ESPPreviewPanel = b:AddPanel(190)
-end
+local ESPPreviewPanel = nil
 
 -- =========================================================================
 -- [ VEST DETAILS TEAM CHECK LOGIC ]
@@ -5555,6 +5553,13 @@ RunService.RenderStepped:Connect(function(dt)
         if instance == LP.Character then
             hide_all(data); continue
         end
+        -- Не рисовать ESP на GirlModel и на моделях внутри персонажа LP
+        if instance.Name == "GirlModel_Custom" then
+            hide_all(data); continue
+        end
+        if LP.Character and instance:IsDescendantOf(LP.Character) then
+            hide_all(data); continue
+        end
 
         if instance:IsA("Model") and not instance.PrimaryPart then 
             local head = instance:FindFirstChild("Head")
@@ -5896,222 +5901,7 @@ end)
 
 for k,v in next,espfunctions do esplib[k]=v end
 
-(function()
-    local P = ESPPreviewPanel
-    local function mkF(x,y,w,h,col)
-        local f = Instance.new("Frame")
-        f.Size = UDim2.new(0,w,0,h)
-        f.Position = UDim2.new(0,x,0,y)
-        f.BackgroundColor3 = col
-        f.BorderSizePixel = 0
-        f.ZIndex = 5
-        f.Parent = P
-        return f
-    end
-    local skin = Color3.fromRGB(255,214,170)
-    local hair = Color3.fromRGB(50,44,52)
-    local dress = Color3.fromRGB(120,90,190)
-    local dark = Color3.fromRGB(40,40,44)
-    local parts = {}
-    local function part(name)
-        local p = { x=0,y=0,w=0,h=0 }
-        parts[name] = p
-        return p
-    end
-    local body = {}
-    function body:addFrame(name, col)
-        local p = part(name)
-        p.f = mkF(0,0,p.w,p.h,col)
-        p.f.BackgroundTransparency = 1
-        return p
-    end
-    body.head     = body:addFrame("head", skin)
-    body.hair     = body:addFrame("hair", hair)
-    body.bodTop   = body:addFrame("bodTop", dress)
-    body.skirt    = body:addFrame("skirt", dress)
-    body.armL     = body:addFrame("armL", skin)
-    body.armR     = body:addFrame("armR", skin)
-    body.legL     = body:addFrame("legL", skin)
-    body.legR     = body:addFrame("legR", skin)
-    body.shoeL    = body:addFrame("shoeL", dark)
-    body.shoeR    = body:addFrame("shoeR", dark)
 
-    local lines = {}
-    local function mkLine()
-        local l = Instance.new("Frame")
-        l.BackgroundColor3 = Color3.new(1,1,1)
-        l.BackgroundTransparency = 1
-        l.BorderSizePixel = 0
-        l.ZIndex = 7
-        l.Parent = P
-        lines[#lines+1] = l
-        return l
-    end
-    local function setLine(l, x1,y1,x2,y2, th)
-        local dx,dy = x2-x1, y2-y1
-        local len = math.sqrt(dx*dx+dy*dy)
-        if len < 0.001 then len = 0.001 end
-        l.Size = UDim2.new(0, len, 0, th)
-        l.Position = UDim2.new(0, x1 + dx*0.5 - len*0.5, 0, y1 + dy*0.5 - th*0.5)
-        l.Rotation = math.atan2(dy, dx) * 180 / math.pi
-    end
-
-    local boxLines = { mkLine(), mkLine(), mkLine(), mkLine() }
-    local cornerLines = {}
-    for i=1,8 do cornerLines[i] = mkLine() end
-    local box3d = {}
-    for i=1,12 do box3d[i] = mkLine() end
-    local skelLines = {}
-    for i=1,10 do skelLines[i] = mkLine() end
-
-    local nameTxt = Instance.new("TextLabel")
-    nameTxt.BackgroundTransparency = 1
-    nameTxt.Text = "PREVIEW"
-    nameTxt.Font = Enum.Font.Code
-    nameTxt.TextSize = 11
-    nameTxt.TextColor3 = Color3.new(1,1,1)
-    nameTxt.ZIndex = 7
-    nameTxt.Parent = P
-
-    local healthTxt = Instance.new("TextLabel")
-    healthTxt.BackgroundTransparency = 1
-    healthTxt.Text = "100"
-    healthTxt.Font = Enum.Font.Code
-    healthTxt.TextSize = 10
-    healthTxt.TextColor3 = Color3.new(1,1,1)
-    healthTxt.ZIndex = 7
-    healthTxt.Parent = P
-
-    local function lerpColor(a,b,t)
-        return Color3.new(a.R+(b.R-a.R)*t, a.G+(b.G-a.G)*t, a.B+(b.B-a.B)*t)
-    end
-
-    local pe=RunService.RenderStepped:Connect(function()
-        local on = Toggles.ESPPreviewToggle.Value
-        P.Visible = on
-        if not on then return end
-        local W = P.AbsoluteSize.X
-        local H = P.AbsoluteSize.Y
-        local cx = W * 0.5
-        local top = 16
-        local bot = H - 10
-        local bh = bot - top
-        local bw = bh * WIDTH_MULT
-        local left = cx - bw * 0.5
-        local right = cx + bw * 0.5
-
-        local hR = math.min(16, bh * 0.11)
-        local hC = top + bh * 0.08
-        local shY = hC + hR + bh * 0.06
-        local hipY = top + bh * 0.52
-        local kneeY = top + bh * 0.72
-        local footY = bot - 6
-        local shW = bh * 0.16
-        local armW = bh * 0.035
-        local legW = bh * 0.04
-
-        local function place(p, x, y, w, h)
-            p.x, p.y, p.w, p.h = x, y, w, h
-            p.f.BackgroundTransparency = 0
-            p.f.Size = UDim2.new(0, w, 0, h)
-            p.f.Position = UDim2.new(0, x - w*0.5, 0, y - h*0.5)
-        end
-        place(body.hair,   cx, hC, hR*1.8, hR*1.7)
-        place(body.head,   cx, hC + 2, hR*1.7, hR*1.7)
-        place(body.bodTop, cx, hC + hR*1.5, shW*1.25, bh*0.12)
-        place(body.skirt,  cx, hC + hR*1.5 + bh*0.12 + bh*0.09, shW*1.35, bh*0.16)
-        local armTop = hC + hR*1.4
-        local armBot = hipY + 2
-        place(body.armL, cx - shW*1.15, (armTop+armBot)*0.5, armW, armBot-armTop)
-        place(body.armR, cx + shW*1.15, (armTop+armBot)*0.5, armW, armBot-armTop)
-        local legTop = hipY + bh*0.16
-        place(body.legL, cx - shW*0.42, (legTop+footY)*0.5, legW, footY-legTop)
-        place(body.legR, cx + shW*0.42, (legTop+footY)*0.5, legW, footY-legTop)
-        place(body.shoeL, cx - shW*0.42, footY+3, legW*1.6, 6)
-        place(body.shoeR, cx + shW*0.42, footY+3, legW*1.6, 6)
-
-        for _,l in ipairs(boxLines) do l.Visible = false end
-        for _,l in ipairs(cornerLines) do l.Visible = false end
-        for _,l in ipairs(box3d) do l.Visible = false end
-        for _,l in ipairs(skelLines) do l.Visible = false end
-
-        local showBox = boxCfg.enabled and boxCfg.type ~= "Disabled"
-        local cA = boxCfg.colorA
-        local cB = boxCfg.colorB
-        local mid = lerpColor(cA, cB, 0.5)
-        local th = BOX_THICKNESS
-
-        if showBox then
-            local t = boxCfg.type
-            if t == "2D" then
-                local topL, botL = left, right
-                setLine(boxLines[1], left, top, right, top, th); boxLines[1].Color = cA
-                setLine(boxLines[2], right, top, right, bot, th); boxLines[2].Color = cB
-                setLine(boxLines[3], left, bot, right, bot, th); boxLines[3].Color = cB
-                setLine(boxLines[4], left, top, left, bot, th); boxLines[4].Color = cA
-                boxLines[1].Color = cA; boxLines[2].Color = cB; boxLines[3].Color = cB; boxLines[4].Color = cA
-                for _,l in ipairs(boxLines) do l.Visible = true end
-            elseif t == "Corner" then
-                local cl = math.max(12, bw*0.22)
-                local crn = 8
-                local pts = {
-                    {left, top, left+cl, top}, {left, top, left, top+cl},
-                    {right, top, right-cl, top}, {right, top, right, top+cl},
-                    {left, bot, left+cl, bot}, {left, bot, left, bot-cl},
-                    {right, bot, right-cl, bot}, {right, bot, right, bot-cl},
-                }
-                for i=1,crn do
-                    setLine(cornerLines[i], pts[i][1], pts[i][2], pts[i][3], pts[i][4], th)
-                    cornerLines[i].Color = i%2==1 and cA or cB
-                    cornerLines[i].Visible = true
-                end
-            elseif t == "3D" then
-                local offX = bw*0.12
-                local offY = -bh*0.08
-                local p = {
-                    {left, top}, {right, top}, {right, bot}, {left, bot},
-                    {left+offX, top+offY}, {right+offX, top+offY}, {right+offX, bot+offY}, {left+offX, bot+offY},
-                }
-                local edges = {{1,2},{2,3},{3,4},{4,1},{5,6},{6,7},{7,8},{8,5},{1,5},{2,6},{3,7},{4,8}}
-                for i=1,12 do
-                    setLine(box3d[i], p[edges[i][1]][1], p[edges[i][1]][2], p[edges[i][2]][1], p[edges[i][2]][2], th)
-                    box3d[i].Color = mid
-                    box3d[i].Visible = true
-                end
-            end
-        end
-
-        local showSkel = skeletonCfg.enabled
-        if showSkel then
-            local skA = skeletonCfg.colorA
-            local skB = skeletonCfg.colorB
-            local steps = 10
-            local pts = {
-                {cx, hC}, {cx, hC + hR*1.5},
-                {cx - shW*1.15, hC + hR*1.7}, {cx - shW*1.15, hipY}, {cx + shW*1.15, hC + hR*1.7}, {cx + shW*1.15, hipY},
-                {cx, hipY}, {cx - shW*0.42, (legTop+footY)*0.5}, {cx - shW*0.42, footY}, {cx + shW*0.42, (legTop+footY)*0.5}, {cx + shW*0.42, footY},
-            }
-            local conns = {
-                {1,2}, {2,3}, {3,4}, {2,5}, {5,6}, {2,7}, {7,8}, {8,9}, {7,10}, {10,11},
-            }
-            for i=1,10 do
-                local a = pts[conns[i][1]]; local b = pts[conns[i][2]]
-                setLine(skelLines[i], a[1], a[2], b[1], b[2], skeletonCfg.thickness)
-                skelLines[i].Color = lerpColor(skA, skB, (i-1)/steps)
-                skelLines[i].Visible = true
-            end
-        end
-
-        nameTxt.Visible = esplib.name.enabled
-        nameTxt.Position = UDim2.new(0, cx - 34, 0, top - 16)
-        nameTxt.Size = UDim2.new(0, 68, 0, 14)
-        nameTxt.TextColor3 = esplib.name.fill
-        healthTxt.Visible = esplib.healthtext.enabled
-        healthTxt.Position = UDim2.new(0, right + 3, 0, (top+bot)*0.5 - 7)
-        healthTxt.Size = UDim2.new(0, 30, 0, 14)
-        healthTxt.TextColor3 = esplib.healthtext.color
-    end)
-end)()
 
 local function updateESPSettings()
     local bt=Options.ESPBoxType.Value
@@ -6151,6 +5941,9 @@ local espCharacters={}
 local function addEspToCharacter(character)
     if not character or espCharacters[character] then return end
     if character == LP.Character then return end
+    -- Не рисовать ESP на GirlModel и на любой модели внутри персонажа LP
+    if character.Name == "GirlModel_Custom" then return end
+    if LP.Character and character:IsDescendantOf(LP.Character) then return end
     
     esplib.add_box(character)
     esplib.add_name(character)
@@ -6183,6 +5976,8 @@ local function scanCharactersFolder()
     local function processContainer(container)
         for _, child in ipairs(container:GetChildren()) do
             if child:IsA("Model") then
+                if child.Name == "GirlModel_Custom" then continue end
+                if LP.Character and child:IsDescendantOf(LP.Character) then continue end
                 if child:GetAttribute("Health") ~= nil or child:FindFirstChild("Head") then
                     addEspToCharacter(child)
                 end
@@ -6200,6 +5995,8 @@ if charactersFolder then
     charactersFolder.DescendantAdded:Connect(function(descendant)
         if descendant:IsA("Model") then
             task.wait(0.1)
+            if descendant.Name == "GirlModel_Custom" then return end
+            if LP.Character and descendant:IsDescendantOf(LP.Character) then return end
             if descendant:GetAttribute("Health") ~= nil or descendant:FindFirstChild("Head") then
                 addEspToCharacter(descendant)
             end
@@ -6366,6 +6163,9 @@ local function FindAllTargets()
             local head = obj:FindFirstChild("Head")
             local root = obj:FindFirstChild("HumanoidRootPart")
             if (head or root) and obj ~= lchar then
+                -- Не добавлять GirlModel и модели внутри LP.Character
+                if obj.Name == "GirlModel_Custom" then continue end
+                if lchar and obj:IsDescendantOf(lchar) then continue end
                 local isDead = obj:GetAttribute("Dead")
                     or obj:GetAttribute("Invincible")
                 local hp = obj:GetAttribute("Health")
@@ -6913,6 +6713,10 @@ task.spawn(function()
                 if result and result.Instance then
                     local char = result.Instance:FindFirstAncestorOfClass("Model")
                     if char then
+                        -- Игнорируем если это модель внутри персонажа LP (GirlModel_Custom)
+                        if LP.Character and char:IsDescendantOf(LP.Character) then
+                            -- пропустить
+                        else
                         local player = Players:GetPlayerFromCharacter(char)
                         if player and player ~= LP then
                             local _, onScreen = cam:WorldToViewportPoint(result.Instance.Position)
@@ -6923,6 +6727,7 @@ task.spawn(function()
                                     end
                                 end
                             end
+                        end
                         end
                     end
                 end
@@ -6975,6 +6780,10 @@ task.spawn(function()
                 if result and result.Instance then
                     local char = result.Instance:FindFirstAncestorOfClass("Model")
                     if char then
+                        -- Игнорируем если это модель внутри персонажа LP (GirlModel_Custom)
+                        if LP.Character and char:IsDescendantOf(LP.Character) then
+                            -- пропустить
+                        else
                         local player = Players:GetPlayerFromCharacter(char)
                         if player and player ~= LP then
                             local _, onScreen = cam:WorldToViewportPoint(result.Instance.Position)
@@ -6985,6 +6794,7 @@ task.spawn(function()
                                     end
                                 end
                             end
+                        end
                         end
                     end
                 end
@@ -8453,7 +8263,7 @@ SaveManager:SetSubFolder("pastehub")
 SaveManager:BuildConfigSection(Tabs.Settings)
 ThemeManager:ApplyToTab(Tabs.Settings)
 
-SaveManager:LoadAutoloadConfig()
+-- SaveManager:LoadAutoloadConfig() -- отключено: не загружать сохранённый конфиг автоматически
 
 _G.__PASTEHUB_FULLBUILD_UNLOAD__ = function()
     pcall(function() Library:Unload() end)
