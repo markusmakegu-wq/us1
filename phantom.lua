@@ -1119,9 +1119,7 @@ do
     end
 
     local TabCols = {}
-    local function EnsureTabCols(idx)
-        if TabCols[idx] then return TabCols[idx] end
-        local frame = TabFrames[idx]
+    local function MakeColsPair(parent)
         local left = Instance.new("ScrollingFrame")
         left.Name = "LeftCol"
         left.Size = UDim2.new(0.5, -6, 1, 0)
@@ -1133,7 +1131,7 @@ do
         left.AutomaticCanvasSize = Enum.AutomaticSize.Y
         left.CanvasSize = UDim2.new(0, 0, 0, 0)
         left.Active = true
-        left.Parent = frame
+        left.Parent = parent
         local ll = Instance.new("UIListLayout")
         ll.Padding = UDim.new(0, 8)
         ll.SortOrder = Enum.SortOrder.LayoutOrder
@@ -1150,13 +1148,19 @@ do
         right.AutomaticCanvasSize = Enum.AutomaticSize.Y
         right.CanvasSize = UDim2.new(0, 0, 0, 0)
         right.Active = true
-        right.Parent = frame
+        right.Parent = parent
         local rl = Instance.new("UIListLayout")
         rl.Padding = UDim.new(0, 8)
         rl.SortOrder = Enum.SortOrder.LayoutOrder
         rl.Parent = right
 
-        TabCols[idx] = { left = left, right = right, leftN = 0, rightN = 0 }
+        return { left = left, right = right, leftN = 0, rightN = 0 }
+    end
+
+    local function EnsureTabCols(idx)
+        if TabCols[idx] then return TabCols[idx] end
+        local frame = TabFrames[idx]
+        TabCols[idx] = MakeColsPair(frame)
         return TabCols[idx]
     end
 
@@ -2438,6 +2442,7 @@ do
     local function MakeTabObj(tabIndex)
         local cols = EnsureTabCols(tabIndex)
         local t = {}
+
         function t:AddLeftGroupbox(name)
             cols.leftN = cols.leftN + 1
             local box = Instance.new("Frame")
@@ -4697,8 +4702,6 @@ GernadesBox:AddToggle("Antismoke", {
 WeaponModsBox:AddToggle("Firerate", {
     Text = "Enable Firerate Changer",
     Default = false,
-    Disabled = typeof(hookfunction) ~= "function",
-    DisabledTooltip = "This feature is not available on your executor.",
 })
 
 WeaponModsBox:AddSlider("FirerateSlider", { Text = "Firerate", Default = 0.01, Min = 0, Max = 1, Rounding = 3 })
@@ -4721,8 +4724,8 @@ WeaponModsBox:AddToggle("NoSpread", {
 -- [ COMBAT TAB - BLATANT + RAGE ]
 -- =========================================================================
 
-local CombatBlatantBox = Tabs.Combat:AddLeftGroupbox("Silent Aim", "zap")
-local RageBlatantBox = Tabs.Legit:AddRightGroupbox("Ragebot", "flame")
+local CombatBlatantBox = Tabs.Legit:AddLeftGroupbox("Silent Aim", "zap")
+local RageBlatantBox = Tabs.Combat:AddLeftGroupbox("Ragebot", "flame")
 
 CombatBlatantBox:AddToggle("SilentAim", {
     Text = "Enable Silent Aim",
@@ -7573,7 +7576,7 @@ end)
 -- =========================================================================
 
 task.spawn(function()
-    local MiscWeaponBox = Tabs.Misc:AddRightGroupbox("Weapon", "crosshair")
+    local MiscWeaponBox = Tabs.Combat:AddRightGroupbox("Weapon", "crosshair")
 
     MiscWeaponBox:AddToggle("InstantReload", {
         Text = "Instant Reload",
