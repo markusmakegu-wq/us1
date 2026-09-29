@@ -3551,7 +3551,7 @@ GrenadeVisualBox:AddToggle("SmokeZoneESP", {
 -- [ CUSTOM HANDS ]
 -- =========================================================================
 
-local CustomHandsBox = Tabs.Misc:AddRightGroupbox("Custom Hands Postition", "crosshair")
+local CustomHandsBox = Tabs.Visuals:AddRightGroupbox("Custom Hands Postition", "crosshair")
 
 CustomHandsBox:AddToggle("CustomHandsEnabled", { Text = "Enable", Default = false })
 CustomHandsBox:AddSlider("HandsX", { Text = "X", Default = 0.2, Min = -2, Max = 2, Rounding = 3, Suffix = "studs" })
@@ -3833,7 +3833,7 @@ MemesenseDepBox:SetupDependencies({ {Toggles.MemesenseMainToggle, true} })
 -- [ HIT SOUND ]
 -- =========================================================================
 
-local HitSoundBox = Tabs.Misc:AddLeftGroupbox("Hit Sound", "volume-2")
+local HitSoundBox = Tabs.Visuals:AddLeftGroupbox("Hit Sound", "volume-2")
 
 HitSoundBox:AddToggle("HitSoundEnabled", { Text = "Enable Hit Sound", Default = false })
 HitSoundBox:AddToggle("CustomHitSoundToggle", { Text = "Enable Custom Hit Sound", Default = false })
@@ -3904,7 +3904,7 @@ local CustomCameraBox = Tabs.Misc:AddRightGroupbox("Custom Camera", "video")
 CustomCameraBox:AddToggle("CustomFovToggle", {
     Text = "Custom FOV",
     Default = false,
-}):AddKeyPicker("CustomFovKey", { Text = "Custom FOV Key", Default = "One", Mode = "Always" })
+})
 
 CustomCameraBox:AddSlider("FovAmount", { Text = "FOV Amount", Default = 90, Min = 70, Max = 120, Rounding = 0, Suffix = "deg" })
 
@@ -3912,7 +3912,7 @@ CustomCameraBox:AddSlider("FovAmount", { Text = "FOV Amount", Default = 90, Min 
 -- [ CUSTOM SCOPE ]
 -- =========================================================================
 
-local CustomScopeBox = Tabs.Misc:AddRightGroupbox("Custom Scope", "crosshair")
+local CustomScopeBox = Tabs.Visuals:AddRightGroupbox("Custom Scope", "crosshair")
 
 CustomScopeBox:AddToggle("CustomScopeFov", { Text = "Custom Scope FOV", Default = false })
 CustomScopeBox:AddSlider("ScopeFovValue", { Text = "Scope FOV", Default = 70, Min = 10, Max = 100, Rounding = 1, Suffix = "deg" })
@@ -4167,15 +4167,8 @@ end)
 RunService.RenderStepped:Connect(function()
     pcall(function()
         if Toggles.CustomFovToggle and Toggles.CustomFovToggle.Value then
-            local keypicker = Options.CustomFovKey
-            local active = true
-            if keypicker and keypicker.Value ~= "Always" and keypicker.Value ~= "One" then
-                active = keypicker:GetState()
-            end
-            if active then
-                local cam = Workspace.CurrentCamera
-                if cam then cam.FieldOfView = Options.FovAmount.Value or 90 end
-            end
+            local cam = Workspace.CurrentCamera
+            if cam then cam.FieldOfView = Options.FovAmount.Value or 90 end
         end
         if isThirdPersonActive() then
             local clampedDist = math.clamp(Options.ThirdPersonDist and Options.ThirdPersonDist.Value or 10, 5, 50)
@@ -4913,6 +4906,10 @@ WeaponModsBox:AddToggle("Firerate", {
 
 WeaponModsBox:AddSlider("FirerateSlider", { Text = "Firerate", Default = 0.01, Min = 0, Max = 1, Rounding = 3 })
 
+local RapidFireBox = Tabs.Misc:AddLeftGroupbox("Rapid Fire", "flame")
+
+RapidFireBox:AddToggle("MiscRapidFire", { Text = "Enable Rapid Fire", Default = false })
+
 WeaponModsBox:AddToggle("NoRecoil", {
     Text = "Enable No Recoil",
     Default = false,
@@ -4972,6 +4969,25 @@ RageBlatantBox:AddToggle("Ragebot", {
     Disabled = typeof(hookfunction) ~= "function",
     DisabledTooltip = "This feature is not available on your executor.",
 })
+
+RageBlatantBox:AddToggle("RageRapidFire", { Text = "Rapid Fire", Default = false })
+
+task.spawn(function()
+    while not (Toggles.Firerate and Toggles.RageRapidFire and Toggles.MiscRapidFire) do
+        task.wait(0.1)
+    end
+    local function pushToMain(v)
+        pcall(function() Toggles.Firerate:SetValue(v) end)
+    end
+    local function pushToMirrors(v)
+        pcall(function() Toggles.RageRapidFire:SetValue(v) end)
+        pcall(function() Toggles.MiscRapidFire:SetValue(v) end)
+    end
+    Toggles.Firerate:OnChanged(pushToMirrors)
+    Toggles.RageRapidFire:OnChanged(pushToMain)
+    Toggles.MiscRapidFire:OnChanged(pushToMain)
+    pushToMirrors(Toggles.Firerate.Value)
+end)
 
 local RageDependencyBox = RageBlatantBox:AddDependencyBox()
 
@@ -7841,6 +7857,24 @@ task.spawn(function()
 end)
 
 -- =========================================================================
+-- [ RAGE AUTO → FIRERATE + INSTANT RELOAD ]
+-- =========================================================================
+
+task.spawn(function()
+    while not (Toggles.Ragebot and Toggles.Firerate and Toggles.InstantReload) do
+        task.wait(0.1)
+    end
+    local function rageSync(v)
+        pcall(function() Toggles.Firerate:SetValue(v) end)
+        pcall(function() Toggles.InstantReload:SetValue(v) end)
+    end
+    Toggles.Ragebot:OnChanged(rageSync)
+    if Toggles.Ragebot.Value then
+        rageSync(true)
+    end
+end)
+
+-- =========================================================================
 -- [ WEAPON — INSTANT RELOAD ]
 -- =========================================================================
 
@@ -7963,96 +7997,115 @@ task.spawn(function()
         Default = false,
     })
 
+    -- ============ CONFIG ============
+    local CONFIG = {
+        ENABLED      = true,
+        THRESHOLD    = 1,        -- перезарядка при <= этого
+        CHECK_DT     = 0.05,
+        RELOAD_DELAY = 0.5,      -- минимум между нажатиями R
+        DEBUG        = true,
+    }
+
+    local function arEnabled()
+        return CONFIG.ENABLED and Toggles.AutoReload and Toggles.AutoReload.Value
+    end
+
+    -- ============ HUD ============
+    local ammoLabel = nil
+    local lastReload = 0
+
+    local function FindAmmoLabel()
+        local pg = LP:FindFirstChild("PlayerGui")
+        if not pg then return nil end
+        local mg = pg:FindFirstChild("MainGui")
+        if not mg then return nil end
+        local gp = mg:FindFirstChild("Gameplay")
+        if not gp then return nil end
+        local bt = gp:FindFirstChild("Bottom")
+        if not bt then return nil end
+        local am = bt:FindFirstChild("Ammo")
+        if not am then return nil end
+
+        for _, c in ipairs(am:GetDescendants()) do
+            if c:IsA("TextLabel") and c.Name == "Amount" then
+                return c
+            end
+        end
+        return nil
+    end
+
+    local function GetAmmo()
+        if not ammoLabel or not ammoLabel.Parent then
+            ammoLabel = FindAmmoLabel()
+        end
+        if not ammoLabel then return nil end
+        return tonumber((ammoLabel.Text or ""):match("^(%d+)"))
+    end
+
+    -- ============ ПЕРЕЗАРЯДКА ============
+    local function DoReload()
+        local now = tick()
+        if now - lastReload < CONFIG.RELOAD_DELAY then return end
+        lastReload = now
+
+        if CONFIG.DEBUG then
+            print("[RELOAD] Ammo <= " .. CONFIG.THRESHOLD .. " → жму R")
+        end
+
+        pcall(function()
+            if keypress and keyrelease then
+                keypress(0x52)
+                task.wait(0.02)
+                keyrelease(0x52)
+            else
+                local vim = game:GetService("VirtualInputManager")
+                vim:SendKeyEvent(true,  Enum.KeyCode.R, false, game)
+                task.wait(0.02)
+                vim:SendKeyEvent(false, Enum.KeyCode.R, false, game)
+            end
+        end)
+    end
+
+    -- ============ ОСНОВНОЙ ЦИКЛ ============
     task.spawn(function()
-        local lastAmmo = nil
-        local reloading = false
+        ammoLabel = FindAmmoLabel()
+        if CONFIG.DEBUG then
+            print("[RELOAD] Ammo label:", ammoLabel)
+            if ammoLabel then
+                print("[RELOAD] Current ammo:", ammoLabel.Text)
+            end
+        end
 
         while true do
-            task.wait(0.05)
+            task.wait(CONFIG.CHECK_DT)
+
+            if not arEnabled() then continue end
+
             pcall(function()
-                if not (Toggles.AutoReload and Toggles.AutoReload.Value) then
-                    reloading = false
-                    lastAmmo = nil
-                    return
-                end
-
-                -- Читаем патроны из PlayerGui (BloxStrike показывает их в HUD)
-                local ammo = nil
-                pcall(function()
-                    local pg = LP:FindFirstChild("PlayerGui")
-                    if not pg then return end
-                    local mg = pg:FindFirstChild("MainGui")
-                    if not mg then return end
-                    -- Ищем текстовый лейбл с патронами в HUD
-                    local gameplay = mg:FindFirstChild("Gameplay")
-                    if not gameplay then return end
-                    local bottom = gameplay:FindFirstChild("Bottom")
-                    if not bottom then return end
-                    local inv = bottom:FindFirstChild("Inventory")
-                    if not inv then return end
-                    -- Текущий слот оружия
-                    for _, slot in ipairs(inv:GetChildren()) do
-                        local selected = slot:GetAttribute("Selected") or slot:FindFirstChild("Selected")
-                        if selected and (selected == true or (typeof(selected) == "Instance" and selected.Value == true)) then
-                            local ammoLbl = slot:FindFirstChild("Ammo") or slot:FindFirstChild("AmmoCount")
-                            if ammoLbl and ammoLbl:IsA("TextLabel") then
-                                ammo = tonumber(ammoLbl.Text:match("%d+"))
-                            end
-                            break
-                        end
-                    end
-                end)
-
-                -- Fallback: читаем из weapon object напрямую
-                if ammo == nil then
-                    pcall(function()
-                        local w = Weapon
-                        if not w then return end
-                        -- Пробуем атрибуты
-                        local a = w:GetAttribute("Ammo") or w:GetAttribute("CurrentAmmo")
-                            or w:GetAttribute("ammo") or w:GetAttribute("Bullets")
-                        if a ~= nil then ammo = tonumber(a) end
-                        -- Пробуем через Stats папку
-                        if ammo == nil then
-                            local stats = w:FindFirstChild("Stats")
-                            if stats then
-                                local av = stats:FindFirstChild("Ammo") or stats:FindFirstChild("CurrentAmmo")
-                                if av and av:IsA("NumberValue") or av and av:IsA("IntValue") then
-                                    ammo = av.Value
-                                end
-                            end
-                        end
-                    end)
-                end
-
+                local ammo = GetAmmo()
                 if ammo == nil then return end
 
-                -- Когда патроны стали 0 — нажимаем R
-                if ammo == 0 and lastAmmo ~= 0 and not reloading then
-                    reloading = true
-                    pcall(function()
-                        -- Симулируем нажатие R
-                        if keypress then
-                            keypress(0x52) -- R
-                            task.wait(0.05)
-                            keyrelease(0x52)
-                        else
-                            -- Через VirtualInputManager если keypress недоступен
-                            local vim = game:GetService("VirtualInputManager")
-                            vim:SendKeyEvent(true,  Enum.KeyCode.R, false, game)
-                            task.wait(0.05)
-                            vim:SendKeyEvent(false, Enum.KeyCode.R, false, game)
-                        end
-                    end)
+                if ammo <= CONFIG.THRESHOLD then
+                    DoReload()
                 end
-
-                if ammo ~= nil and ammo > 0 then
-                    reloading = false
-                end
-                lastAmmo = ammo
             end)
         end
     end)
+
+    -- ============ УПРАВЛЕНИЕ ============
+    _G.RELOAD = {
+        Config = CONFIG,
+        SetEnabled   = function(v) CONFIG.ENABLED = v end,
+        SetThreshold = function(v) CONFIG.THRESHOLD = v end,
+        SetDelay     = function(v) CONFIG.RELOAD_DELAY = v end,
+        GetAmmo      = GetAmmo,
+        ForceReload  = DoReload,
+        Unload = function() _G.RELOAD = nil end,
+    }
+
+    print("[AUTO RELOAD] Loaded. Триггер: <= " .. CONFIG.THRESHOLD)
+    print("[AUTO RELOAD] _G.RELOAD.GetAmmo()  -- проверить патроны")
+    print("[AUTO RELOAD] _G.RELOAD.ForceReload()  -- вручную")
 end)
 
 -- =========================================================================
