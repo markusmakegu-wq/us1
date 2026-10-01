@@ -89,6 +89,41 @@ local function TW(o, p, t, st, dir)
     return tw
 end
 
+-- масштаб под экран телефона/планшета (на ПК объект не создаётся вовсе)
+local function fitScale(target, designW, designH, minS)
+    local scaleObj = nil
+    local function apply()
+        local vp = Vector2.new(1920, 1080)
+        pcall(function()
+            local cam = workspace.CurrentCamera
+            if cam then vp = cam.ViewportSize end
+        end)
+        local s = math.min((vp.X - 20) / designW, (vp.Y - 20) / designH)
+        if s > 1 then s = 1 end
+        if s < (minS or 0.5) then s = (minS or 0.5) end
+        if s < 1 then
+            if not scaleObj or not scaleObj.Parent then
+                scaleObj = Instance.new("UIScale")
+                scaleObj.Parent = target
+            end
+            scaleObj.Scale = s
+        elseif scaleObj then
+            scaleObj:Destroy()
+            scaleObj = nil
+        end
+    end
+    apply()
+    task.spawn(function()
+        pcall(function()
+            local cam = workspace.CurrentCamera or workspace:WaitForChild("CurrentCamera", 10)
+            if cam then
+                apply()
+                cam:GetPropertyChangedSignal("ViewportSize"):Connect(apply)
+            end
+        end)
+    end)
+end
+
 local shake = Instance.new("Frame", sg)
 shake.Size = UDim2.new(1, 0, 1, 0)
 shake.BackgroundTransparency = 1
@@ -174,9 +209,11 @@ end
 -- ЛОГО
 local logoHolder = Instance.new("Frame", shake)
 logoHolder.Size = UDim2.new(0, 900, 0, 200)
-logoHolder.Position = UDim2.new(0.5, -450, 0.5, -100)
+logoHolder.AnchorPoint = Vector2.new(0.5, 0.5)
+logoHolder.Position = UDim2.new(0.5, 0, 0.5, 0)
 logoHolder.BackgroundTransparency = 1
 logoHolder.ZIndex = 10
+pcall(fitScale, logoHolder, 900, 200, 0.33)
 
 local gameLbl = Instance.new("TextLabel", logoHolder)
 gameLbl.Size = UDim2.new(0.5, 0, 1, 0)
@@ -336,7 +373,7 @@ task.spawn(function()
         gameBlue.TextTransparency = 0.1
         senseRed.TextTransparency = 0.1
         senseBlue.TextTransparency = 0.1
-        logoHolder.Position = UDim2.new(0.5, -450 + math.random(-10, 10), 0.5, -100 + math.random(-6, 6))
+        logoHolder.Position = UDim2.new(0.5, math.random(-10, 10), 0.5, math.random(-6, 6))
         gameLbl.TextSize = 148
         senseLbl.TextSize = 148
         flash.BackgroundTransparency = 0.82
@@ -348,7 +385,7 @@ task.spawn(function()
         TW(gameBlue, {Position = UDim2.new(0, -10, 0, 2), TextTransparency = 0.5}, 0.15)
         TW(senseRed, {Position = UDim2.new(0.5, 10, 0, -2), TextTransparency = 0.5}, 0.15)
         TW(senseBlue, {Position = UDim2.new(0.5, -10, 0, 2), TextTransparency = 0.5}, 0.15)
-        TW(logoHolder, {Position = UDim2.new(0.5, -450, 0.5, -100)}, 0.15, Enum.EasingStyle.Back)
+        TW(logoHolder, {Position = UDim2.new(0.5, 0, 0.5, 0)}, 0.15, Enum.EasingStyle.Back)
         TW(gameLbl, {TextSize = 130}, 0.15, Enum.EasingStyle.Back)
         TW(senseLbl, {TextSize = 130}, 0.15, Enum.EasingStyle.Back)
         TW(flash, {BackgroundTransparency = 1}, 0.15)
@@ -707,32 +744,42 @@ do
     local MainFrame = Instance.new("CanvasGroup")
     MainFrame.Name = "Main"
     MainFrame.Size = UDim2.new(0, 660, 0, 560)
-    MainFrame.Position = UDim2.new(0.5, -330, 0.5, -280)
+    MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+    MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
     MainFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
     MainFrame.BorderSizePixel = 0
     MainFrame.Active = true
     MainFrame.Draggable = false
     MainFrame.Parent = ScreenGui
+    pcall(fitScale, MainFrame, 660, 560, 0.45)
 
+    -- перетаскивание мышью И пальцем (телефон)
+    local function isDragType(t)
+        return t == Enum.UserInputType.MouseButton1 or t == Enum.UserInputType.Touch
+    end
     local dragState = { on = false, ox = 0, oy = 0 }
     Track(UserInputService.InputBegan:Connect(function(input)
-        if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+        if not isDragType(input.UserInputType) then return end
         if not ScreenGui.Parent or not MainFrame.Parent or MainFrame.GroupTransparency > 0.5 then return end
         local m = input.Position
+        local zone = (input.UserInputType == Enum.UserInputType.Touch) and 40 or 18
         if m.X >= MainFrame.AbsolutePosition.X and m.X <= MainFrame.AbsolutePosition.X + MainFrame.AbsoluteSize.X
-            and m.Y >= MainFrame.AbsolutePosition.Y and m.Y <= MainFrame.AbsolutePosition.Y + 18 then
+            and m.Y >= MainFrame.AbsolutePosition.Y and m.Y <= MainFrame.AbsolutePosition.Y + zone then
             dragState.on = true
             dragState.ox = m.X - MainFrame.AbsolutePosition.X
             dragState.oy = m.Y - MainFrame.AbsolutePosition.Y
         end
     end))
     Track(UserInputService.InputChanged:Connect(function(input)
-        if not dragState.on or input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
+        if not dragState.on then return end
+        local t = input.UserInputType
+        if t ~= Enum.UserInputType.MouseMovement and t ~= Enum.UserInputType.Touch then return end
         local m = input.Position
-        MainFrame.Position = UDim2.new(0, m.X - dragState.ox, 0, m.Y - dragState.oy)
+        local as = MainFrame.AbsoluteSize
+        MainFrame.Position = UDim2.new(0, (m.X - dragState.ox) + as.X * 0.5, 0, (m.Y - dragState.oy) + as.Y * 0.5)
     end))
     Track(UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then dragState.on = false end
+        if isDragType(input.UserInputType) then dragState.on = false end
     end))
 
     for _, c in ipairs({ 12, 61, 43, 43, 43, 61 }) do
@@ -2661,6 +2708,33 @@ do
             Library:Toggle()
         end
     end))
+
+    -- кнопка открытия/закрытия меню для телефона (тач)
+    if UserInputService.TouchEnabled then
+        local touchBtn = Instance.new("TextButton")
+        touchBtn.Name = "TouchMenu"
+        touchBtn.Size = UDim2.fromOffset(48, 48)
+        touchBtn.AnchorPoint = Vector2.new(0.5, 0.5)
+        touchBtn.Position = UDim2.new(1, -34, 1, -34)
+        touchBtn.BackgroundColor3 = Color3.fromRGB(14, 14, 14)
+        touchBtn.BackgroundTransparency = 0.15
+        touchBtn.Text = "≡"
+        touchBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        touchBtn.Font = Enum.Font.GothamBold
+        touchBtn.TextSize = 26
+        touchBtn.AutoButtonColor = true
+        touchBtn.BorderSizePixel = 0
+        touchBtn.ZIndex = 60
+        touchBtn.Parent = ScreenGui
+        local tc = Instance.new("UICorner", touchBtn)
+        tc.CornerRadius = UDim.new(1, 0)
+        local ts = Instance.new("UIStroke", touchBtn)
+        ts.Color = Color3.fromRGB(70, 70, 70)
+        ts.Thickness = 1
+        touchBtn.MouseButton1Click:Connect(function()
+            pcall(function() Library:Toggle() end)
+        end)
+    end
 
     Track(RunService.RenderStepped:Connect(function(dt)
         if unloaded or not ScreenGui.Parent then return end
@@ -4899,11 +4973,6 @@ GernadesBox:AddToggle("Antismoke", {
     DisabledTooltip = "This feature is not available on your executor.",
 })
 
-WeaponModsBox:AddToggle("Firerate", {
-    Text = "Enable Firerate Changer",
-    Default = false,
-})
-
 WeaponModsBox:AddSlider("FirerateSlider", { Text = "Firerate", Default = 0.01, Min = 0, Max = 1, Rounding = 3 })
 
 local RapidFireBox = Tabs.Misc:AddLeftGroupbox("Rapid Fire", "flame")
@@ -4973,20 +5042,15 @@ RageBlatantBox:AddToggle("Ragebot", {
 RageBlatantBox:AddToggle("RageRapidFire", { Text = "Rapid Fire", Default = false })
 
 task.spawn(function()
-    while not (Toggles.Firerate and Toggles.RageRapidFire and Toggles.MiscRapidFire) do
+    while not (Toggles.RageRapidFire and Toggles.MiscRapidFire) do
         task.wait(0.1)
     end
-    local function pushToMain(v)
-        pcall(function() Toggles.Firerate:SetValue(v) end)
-    end
-    local function pushToMirrors(v)
-        pcall(function() Toggles.RageRapidFire:SetValue(v) end)
+    Toggles.RageRapidFire:OnChanged(function(v)
         pcall(function() Toggles.MiscRapidFire:SetValue(v) end)
-    end
-    Toggles.Firerate:OnChanged(pushToMirrors)
-    Toggles.RageRapidFire:OnChanged(pushToMain)
-    Toggles.MiscRapidFire:OnChanged(pushToMain)
-    pushToMirrors(Toggles.Firerate.Value)
+    end)
+    Toggles.MiscRapidFire:OnChanged(function(v)
+        pcall(function() Toggles.RageRapidFire:SetValue(v) end)
+    end)
 end)
 
 local RageDependencyBox = RageBlatantBox:AddDependencyBox()
@@ -6926,10 +6990,16 @@ end)
 -- [ FIRERATE LOOP ]
 -- =========================================================================
 
+local function rapidFireActive()
+    local r = Toggles.RageRapidFire
+    local m = Toggles.MiscRapidFire
+    return (r and r.Value) or (m and m.Value) or false
+end
+
 task.spawn(function()
     while task.wait(0.05) do
         pcall(function()
-            if Toggles.Firerate and Toggles.Firerate.Value then
+            if rapidFireActive() then
                 for _, obj in next, firerateobjs do
                     pcall(function()
                         setreadonly(obj, false)
@@ -7861,11 +7931,12 @@ end)
 -- =========================================================================
 
 task.spawn(function()
-    while not (Toggles.Ragebot and Toggles.Firerate and Toggles.InstantReload) do
+    while not (Toggles.Ragebot and Toggles.RageRapidFire and Toggles.MiscRapidFire and Toggles.InstantReload) do
         task.wait(0.1)
     end
     local function rageSync(v)
-        pcall(function() Toggles.Firerate:SetValue(v) end)
+        pcall(function() Toggles.RageRapidFire:SetValue(v) end)
+        pcall(function() Toggles.MiscRapidFire:SetValue(v) end)
         pcall(function() Toggles.InstantReload:SetValue(v) end)
     end
     Toggles.Ragebot:OnChanged(rageSync)
