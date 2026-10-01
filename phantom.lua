@@ -27,6 +27,36 @@ local LP = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 
 local MUSIC_ID = 126400067778923
+
+-- ──────────────────────────────────────────────
+-- БЛОКИРОВКА XENO SOLARA
+-- ──────────────────────────────────────────────
+do
+    local function envGlobal(name)
+        local v = nil
+        pcall(function() v = getgenv and getgenv()[name] end)
+        if v == nil then pcall(function() v = getfenv(0)[name] end) end
+        if v == nil then pcall(function() v = _G[name] end) end
+        return v
+    end
+    local function exName()
+        for _, fn in ipairs({ "getexecutorname", "identifyexecutor" }) do
+            local f = envGlobal(fn)
+            if type(f) == "function" then
+                local ok, r = pcall(f)
+                if ok and type(r) == "string" and r ~= "" then return r end
+            end
+        end
+        local marker = envGlobal("Xeno") or envGlobal("Solara")
+        if marker ~= nil then return "Xeno" end
+        return ""
+    end
+    local name = string.lower(exName())
+    if name:find("xeno", 1, true) or name:find("solara", 1, true) then
+        pcall(function() LP:Kick("XENO SOLARA NO SUPORT") end)
+        return
+    end
+end
 local START_AT = 60
 local DURATION = 15
 local VOLUME = 3
